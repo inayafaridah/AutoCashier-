@@ -27,7 +27,7 @@ import {
 import { toast } from "sonner";
 
 export default function PromoPage() {
-  const {currentLocation, locationName} = useLocation();
+  const {currentLocation, locationName, allBranches} = useLocation();
   const {user} = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [targetType, setTargetType] = useState('ALL');
@@ -207,7 +207,7 @@ export default function PromoPage() {
                                  <SelectValue placeholder="Target Branch" />
                               </SelectTrigger>
                               <SelectContent className="rounded-2xl border-none shadow-2xl p-2 font-sans">
-                                 {MOCK_LOCATIONS.filter(l => l.id !== 'ALL').map(loc => (
+                                 {allBranches.filter(l => l.id !== 'ALL').map(loc => (
                                     <SelectItem key={loc.id} value={loc.id} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold font-sans">{loc.name}</SelectItem>
                                  ))}
                               </SelectContent>

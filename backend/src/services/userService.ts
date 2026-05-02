@@ -1,18 +1,18 @@
 import { supabase, supabaseAdmin } from '../config/supabaseClient';
+import bcrypt from 'bcryptjs';
 
 export async function getAllUsers() {
   try {
     const db = supabaseAdmin || supabase;
-    // Fetch profiles and join with branch name if possible
+    // Fetch users from the 'users' table
     const { data, error } = await db
-      .from('profiles')
+      .from('users')
       .select(`
         id,
         full_name,
         email,
         role,
-        branch_id,
-        branches (name)
+        username
       `)
       .order('full_name');
 
@@ -20,14 +20,13 @@ export async function getAllUsers() {
     
     return { 
       ok: true, 
-      data: data.map(u => ({
+      data: (data || []).map(u => ({
         id: u.id,
-        name: u.full_name,
+        name: u.full_name || u.username,
         email: u.email,
-        role: u.role,
-        location: u.branches?.name || 'Unassigned',
-        branch_id: u.branch_id,
-        status: 'Active' // Profiles in DB are generally active
+        role: u.role === 'super_admin' ? 'Super Admin' : (u.role === 'branch_admin' ? 'Branch Admin' : u.role),
+        location: 'All Branches', // Simplified for now
+        status: 'Active'
       }))
     };
   } catch (err) {
@@ -38,31 +37,26 @@ export async function getAllUsers() {
 
 export async function createUser(userData: any) {
   try {
-    const db = supabaseAdmin;
-    if (!db) throw new Error('Admin privileges required to create users');
+    const db = supabaseAdmin || supabase;
+    
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(userData.password, salt);
 
-    // 1. Create auth user
-    const { data: authData, error: authError } = await db.auth.admin.createUser({
-      email: userData.email,
-      password: userData.password,
-      email_confirm: true,
-      user_metadata: { full_name: userData.name }
-    });
+    const { data, error } = await db
+      .from('users')
+      .insert([{
+        username: userData.email.split('@')[0], // Use email prefix as default username
+        email: userData.email,
+        password: hash,
+        full_name: userData.name,
+        role: userData.role === 'Super Admin' ? 'super_admin' : (userData.role === 'Branch Admin' ? 'branch_admin' : 'member')
+      }])
+      .select()
+      .single();
 
-    if (authError) throw authError;
+    if (error) throw error;
 
-    // 2. Profile is usually created by a trigger, but let's ensure it's updated with the role
-    const { error: profError } = await db
-      .from('profiles')
-      .update({
-        role: userData.role,
-        branch_id: userData.branchId || null
-      })
-      .eq('id', authData.user.id);
-
-    if (profError) throw profError;
-
-    return { ok: true, data: authData.user };
+    return { ok: true, data };
   } catch (err) {
     console.error('[userService] ❌ Error creating user:', err);
     return { ok: false, error: err };
@@ -73,11 +67,11 @@ export async function updateUser(userId: string, updates: any) {
   try {
     const db = supabaseAdmin || supabase;
     const { error } = await db
-      .from('profiles')
+      .from('users')
       .update({
         full_name: updates.name,
-        role: updates.role,
-        branch_id: updates.branchId || null
+        role: updates.role === 'Super Admin' ? 'super_admin' : (updates.role === 'Branch Admin' ? 'branch_admin' : 'member'),
+        email: updates.email
       })
       .eq('id', userId);
 
@@ -91,10 +85,12 @@ export async function updateUser(userId: string, updates: any) {
 
 export async function deleteUser(userId: string) {
   try {
-    const db = supabaseAdmin;
-    if (!db) throw new Error('Admin privileges required to delete users');
-
-    const { error } = await db.auth.admin.deleteUser(userId);
+    const db = supabaseAdmin || supabase;
+    const { error } = await db
+      .from('users')
+      .delete()
+      .eq('id', userId);
+      
     if (error) throw error;
     
     return { ok: true };

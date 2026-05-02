@@ -64,7 +64,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from "sonner";
 
 export default function InventoryPage() {
-  const {currentLocation} = useLocation();
+  const {currentLocation, allBranches} = useLocation();
   const {user} = useAuth();
   const [inventory, setInventory] = useState<any[]>([]);
   const [masterCatalog, setMasterCatalog] = useState<any[]>([]);
@@ -189,7 +189,7 @@ export default function InventoryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const res = await fetchBackend('deleteInventory', { id });
+    const res = await fetchBackend('deleteInventory', { id, location_id: currentLocation });
     if (res.status === 'success') {
        toast.info("Item removed from inventory");
        loadData();
@@ -435,7 +435,7 @@ export default function InventoryPage() {
                                 <SelectValue placeholder="Select Branch" />
                               </SelectTrigger>
                               <SelectContent className="rounded-2xl border-none shadow-2xl">
-                                {MOCK_LOCATIONS.filter(l => l.id !== 'ALL').map(loc => (
+                                {allBranches.filter(l => l.id !== 'ALL').map(loc => (
                                   <SelectItem key={loc.id} value={loc.id} className="rounded-xl">{loc.name}</SelectItem>
                                 ))}
                               </SelectContent>

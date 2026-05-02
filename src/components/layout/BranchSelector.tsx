@@ -13,7 +13,7 @@ import {
 import { buttonVariants } from '@/components/ui/button';
 
 export function BranchSelector() {
-  const { currentLocation, setCurrentLocation, locationName } = useLocation();
+  const { currentLocation, setCurrentLocation, locationName, allBranches } = useLocation();
 
   return (
     <DropdownMenu>
@@ -37,10 +37,10 @@ export function BranchSelector() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 bg-white border-gray-100 shadow-2xl">
         <DropdownMenuLabel className="font-bold text-gray-900 border-b border-gray-50 pb-2 mb-2 px-3">Select Operation Unit</DropdownMenuLabel>
-        {MOCK_LOCATIONS.map((loc) => (
+        {allBranches.map((loc) => (
             <DropdownMenuItem 
               key={loc.id}
-              onClick={() => setCurrentLocation(loc.id as LocationID)}
+              onClick={() => setCurrentLocation(loc.id as any)}
               className={cn(
                 "rounded-xl font-semibold flex items-center justify-between gap-3 p-3 mb-1 cursor-pointer transition-colors",
                 currentLocation === loc.id ? "bg-indigo-50 text-indigo-700" : "hover:bg-gray-50 text-gray-600"

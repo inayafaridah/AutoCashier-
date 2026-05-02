@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabaseClient';
+import { supabaseAdmin as supabase } from '../config/supabaseClient';
 import { comparePassword } from '../utils/passwords';
 import { signToken } from '../utils/jwt';
 import { User } from '../models/User';

@@ -1,10 +1,10 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
 import {Textarea} from '@/components/ui/textarea';
-import {Megaphone, Send, Users, History, AlertTriangle, Target, MapPin} from 'lucide-react';
+import {Megaphone, Send, Users, History, AlertTriangle, Target, MapPin, Loader2} from 'lucide-react';
 import {toast} from 'sonner';
 import {
   Select,
@@ -13,31 +13,85 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {MOCK_LOCATIONS} from '@/lib/api';
+import {fetchBackend} from '@/lib/api';
 
 export default function BroadcastPage() {
   const [message, setMessage] = useState('');
   const [subject, setSubject] = useState('');
   const [audience, setAudience] = useState('ALL_BRANCHES');
   const [scopeBranch, setScopeBranch] = useState('');
+  const [history, setHistory] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
 
-  const activeBranches = MOCK_LOCATIONS.filter(l => l.id !== 'ALL');
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [hRes, bRes] = await Promise.all([
+        fetchBackend('getBroadcasts'),
+        fetchBackend('getBranchSummaries')
+      ]);
+      
+      if (hRes.status === 'success') setHistory(hRes.data);
+      if (bRes.status === 'success') setBranches(bRes.data.branches || bRes.data);
+    } catch (err) {
+      console.error('Failed to load broadcast data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleSend = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSend = async () => {
     if (!message || !subject) {
       toast.error("Please fill in all fields");
       return;
     }
-    toast.success("Broadcast sent successfully!");
-    setMessage('');
-    setSubject('');
+    
+    setIsSending(true);
+    try {
+      const res = await fetchBackend('sendBroadcast', {
+        subject,
+        message,
+        audience,
+        targetId: audience === 'SPECIFIC_BRANCH' ? scopeBranch : null
+      });
+
+      if (res.status === 'success') {
+        toast.success("Broadcast dispatched successfully!");
+        setMessage('');
+        setSubject('');
+        loadData();
+      } else {
+        toast.error(res.message || "Failed to dispatch broadcast");
+      }
+    } catch (err) {
+      toast.error("Network synchronization error");
+    } finally {
+      setIsSending(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+         <p className="text-gray-400 font-black uppercase tracking-widest text-[10px]">Loading Communication Hub...</p>
+      </div>
+    );
+  }
+
+  const activeBranches = branches.filter(b => b.id !== 'ALL');
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">Enterprise Broadcast</h2>
-        <p className="text-gray-500 font-medium">Send emergency alerts or system updates across the network.</p>
+        <p className="text-gray-500 font-medium tracking-tight">Identity & Communication Control Center.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -122,9 +176,11 @@ export default function BroadcastPage() {
                </div>
                <Button 
                 onClick={handleSend}
+                disabled={isSending}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 h-16 rounded-2xl shadow-xl shadow-indigo-600/20 font-black uppercase tracking-widest text-sm gap-3 group transition-all hover:scale-[1.01]"
                >
-                 <Send className="w-5 h-5 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" /> Dispatch Broadcast
+                 {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />} 
+                 {isSending ? 'Sending...' : 'Dispatch Broadcast'}
                </Button>
             </div>
           </Card>
@@ -147,17 +203,17 @@ export default function BroadcastPage() {
                  </div>
                  <div className="space-y-4">
                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-4">
-                       <span className="text-white/40 font-bold uppercase text-[10px] tracking-widest">Total Users</span>
+                       <span className="text-white/40 font-bold uppercase text-[10px] tracking-widest">Target Scope</span>
                        <span className="font-mono font-black text-xl">
-                          {audience === 'ALL_MEMBERS' ? '1,540' : audience === 'SPECIFIC_BRANCH' ? '2' : '124'}
+                          {audience === 'ALL_MEMBERS' ? 'Global' : audience === 'SPECIFIC_BRANCH' ? 'Local' : 'Network'}
                        </span>
                     </div>
                     <div className="flex justify-between items-center text-sm pt-1">
                        <span className="text-white/40 font-bold uppercase text-[10px] tracking-widest">
-                          {audience === 'SPECIFIC_BRANCH' ? 'Selected Branch' : 'Active Branches'}
+                          Integrity Status
                        </span>
-                       <span className="font-mono font-black text-xl text-indigo-400">
-                          {audience === 'SPECIFIC_BRANCH' ? '1' : '12'}
+                       <span className="font-mono font-black text-xl text-emerald-400">
+                          Active
                        </span>
                     </div>
                  </div>
@@ -169,13 +225,20 @@ export default function BroadcastPage() {
                  <History className="w-5 h-5 text-gray-400" />
                  <h4 className="font-black text-gray-900 tracking-tighter uppercase text-sm">Recent History</h4>
               </div>
-              <div className="space-y-4">
-                 {[1, 2].map(i => (
-                    <div key={i} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-2 group hover:bg-indigo-50/30 transition-colors cursor-pointer">
-                       <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none">April 24, 2026</span>
-                       <span className="text-sm font-bold text-gray-900 leading-tight group-hover:text-indigo-600 transition-colors">Holiday operational hours update for all branches.</span>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                 {history.length > 0 ? history.map((item) => (
+                    <div key={item.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-2 group hover:bg-indigo-50/30 transition-colors cursor-pointer">
+                       <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none">
+                          {new Date(item.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                       </span>
+                       <span className="text-sm font-bold text-gray-900 leading-tight group-hover:text-indigo-600 transition-colors">{item.subject}</span>
+                       <p className="text-[10px] text-gray-400 line-clamp-2">{item.body}</p>
                     </div>
-                 ))}
+                 )) : (
+                    <div className="text-center py-8">
+                       <p className="text-gray-400 text-xs font-bold">No broadcast history found.</p>
+                    </div>
+                 )}
               </div>
            </Card>
         </div>

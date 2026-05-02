@@ -94,89 +94,45 @@ export async function getInventoryFromSupabase(locationId?: string) {
   }
 }
 
-export async function createInventoryItemInSupabase(data: any) {
-  try {
-    const { data: newItem, error } = await supabase
-      .from('branch_inventory')
-      .insert([{ ...data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return newItem;
-  } catch (error) {
-    console.error('❌ Failed to create inventory item in Supabase:', error);
-    useSupabase = false;
-    const newItem = { ...data, id: Math.random().toString(36).substr(2, 9), lastUpdated: new Date().toISOString() };
-    branchInventory = [newItem, ...branchInventory];
-    return newItem;
-  }
-}
-
-export async function updateInventoryItemInSupabase(id: string, data: any) {
-  try {
-    const { error } = await supabase
-      .from('branch_inventory')
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    
-    if (error) throw error;
-    return { status: 'success' };
-  } catch (error) {
-    console.error('❌ Failed to update inventory item in Supabase:', error);
-    useSupabase = false;
-    branchInventory = branchInventory.map(item => 
-      item.id === id ? { ...item, ...data, lastUpdated: new Date().toISOString() } : item
-    );
-    return { status: 'success' };
-  }
-}
-
-export async function deleteInventoryItemFromSupabase(id: string) {
-  try {
-    const { error } = await supabase
-      .from('branch_inventory')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-    return { status: 'success' };
-  } catch (error) {
-    console.error('❌ Failed to delete inventory item from Supabase:', error);
-    useSupabase = false;
-    branchInventory = branchInventory.filter(item => item.id !== id);
-    return { status: 'success' };
-  }
-}
-
 export async function fetchBackend(action: string, data: any = {}) {
   await sleep(400); // Simulate network latency
 
   switch (action) {
-    case 'login':
-      if (data.username === 'admin' && (data.password === 'admin' || data.password === 'admin777')) {
+    case 'login': {
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: data.username, 
+          password: data.password 
+        })
+      });
+      
+      const resData = await response.json();
+      
+      if (response.ok && resData.status === 'success') {
+        // Map backend user to frontend expectations
         return {
           status: 'success',
           data: {
-            username: 'Budi Santoso',
-            roleName: 'Manajer Operasional (Pusat)',
-            role: 'super_admin',
-            location_id: 'ALL'
+            username: resData.data.user.full_name || resData.data.user.username,
+            roleName: resData.data.user.role === 'super_admin' ? 'Super Admin (Pusat)' : 'Branch Admin',
+            role: resData.data.user.role,
+            location_id: resData.data.user.branch_id || 'ALL',
+            token: resData.data.token
           }
         };
       }
-      if (data.username === 'admin_jkt' && data.password === 'admin123') {
-        return {
-          status: 'success',
-          data: {
-            username: 'Andi Wijaya',
-            roleName: 'Staf Logistik (Jakarta)',
-            role: 'branch_admin',
-            location_id: 'BR-001'
-          }
-        };
-      }
-      return { status: 'error', message: 'Kredensial salah. Gunakan admin/admin atau admin_jkt/admin123' };
+      
+      return { 
+        status: 'error', 
+        message: resData.error === 'USER_NOT_FOUND' 
+          ? 'Pengguna tidak ditemukan' 
+          : resData.error === 'INVALID_PASSWORD' 
+            ? 'Password salah' 
+            : 'Login gagal. Silakan coba lagi.' 
+      };
+    }
 
     case 'getMasterCatalog':
       if (useSupabase) {
@@ -235,34 +191,31 @@ export async function fetchBackend(action: string, data: any = {}) {
         });
       return { status: 'success', data: results };
 
-    case 'addInventory':
-      if (useSupabase) {
-        const newItem = await createInventoryItemInSupabase(data);
-        return { status: 'success', data: newItem };
-      }
-      const newInvEntry = {
-        ...data,
-        id: Math.random().toString(36).substr(2, 9),
-        lastUpdated: new Date().toISOString()
-      };
-      branchInventory = [newInvEntry, ...branchInventory];
-      return { status: 'success', data: newInvEntry };
-
-    case 'updateInventory':
-      if (useSupabase) {
-        return await updateInventoryItemInSupabase(data.id, data);
-      }
-      branchInventory = branchInventory.map(item => 
-        item.id === data.id ? { ...item, ...data, lastUpdated: new Date().toISOString() } : item
-      );
-      return { status: 'success' };
-
-    case 'deleteInventory':
-      if (useSupabase) {
-        return await deleteInventoryItemFromSupabase(data.id);
-      }
-      branchInventory = branchInventory.filter(item => item.id !== data.id);
-      return { status: 'success' };
+    case 'addInventory': {
+      const response = await fetch(`${BACKEND_URL}/api/branch-inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+ 
+    case 'updateInventory': {
+      const { id, ...updateData } = data;
+      const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+      return await response.json();
+    }
+ 
+    case 'deleteInventory': {
+      const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${data.id}${data.location_id ? `?branch_id=${data.location_id}` : ''}`, {
+        method: 'DELETE'
+      });
+      return await response.json();
+    }
 
     case 'getBranchSummaries': {
       const response = await fetch(`${BACKEND_URL}/api/branch-inventory`);
@@ -271,6 +224,55 @@ export async function fetchBackend(action: string, data: any = {}) {
 
     case 'getBranchInventoryDetails': {
       const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${data.id}`);
+      return await response.json();
+    }
+
+    case 'getUsers': {
+      const response = await fetch(`${BACKEND_URL}/api/users`);
+      return await response.json();
+    }
+
+    case 'getBranches': {
+      const response = await fetch(`${BACKEND_URL}/api/branches`);
+      return await response.json();
+    }
+ 
+    case 'getBroadcasts': {
+      const response = await fetch(`${BACKEND_URL}/api/broadcasts`);
+      return await response.json();
+    }
+
+    case 'sendBroadcast': {
+      const response = await fetch(`${BACKEND_URL}/api/broadcasts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    case 'createUser': {
+      const response = await fetch(`${BACKEND_URL}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    case 'updateUser': {
+      const response = await fetch(`${BACKEND_URL}/api/users/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    case 'deleteUser': {
+      const response = await fetch(`${BACKEND_URL}/api/users/${data.id}`, {
+        method: 'DELETE'
+      });
       return await response.json();
     }
 
