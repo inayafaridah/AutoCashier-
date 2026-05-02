@@ -1,9 +1,14 @@
 /**
- * Mock API service for AutoCashier Admin Dashboard (Presentation Mode)
- * Zero backend dependency.
+ * API service for AutoCashier Admin Dashboard
+ * Integrates with Supabase PostgreSQL database with fallback to mock data
  */
 
+import { supabase } from './supabase';
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+let useSupabase = true; // Toggle between Supabase and mock data
 
 export type LocationID = 'ALL' | 'BR-001' | 'BR-002' | 'BR-003';
 
@@ -14,7 +19,7 @@ export const MOCK_LOCATIONS = [
   { id: 'BR-003', name: 'Bandung Industrial' },
 ];
 
-// Persistent Mock Storage in LocalStorage for dynamic updates
+// Persistent Mock Storage
 const MASTER_CATALOG = [
   { id: 'cat-1', name: 'Arabica Signature Blend', category: 'Coffee Beans', basePrice: 120000 },
   { id: 'cat-2', name: 'Robusta Gold', category: 'Coffee Beans', basePrice: 85000 },
@@ -29,18 +34,127 @@ let branchInventory = [
   { id: '1', catalogId: 'cat-1', stock: 45, price: 125000, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-20T10:00:00Z', syncStatus: 'Synced' },
   { id: '2', catalogId: 'cat-2', stock: 12, price: 85000, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-21T11:30:00Z', syncStatus: 'Synced' },
   { id: '3', catalogId: 'cat-3', stock: 120, price: 45000, location_id: 'BR-002', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-22T09:15:00Z', syncStatus: 'Synced' },
-  { id: '4', catalogId: 'cat-3', stock: 88, price: 47500, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-22T09:15:00Z', syncStatus: 'Awaiting Audit' },
-  { id: '5', catalogId: 'cat-4', stock: 15, price: 68000, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-23T14:20:00Z', syncStatus: 'Synced' },
-  { id: '6', catalogId: 'cat-5', stock: 2500, price: 1250, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-24T08:45:00Z', syncStatus: 'Synced' },
-  { id: '7', catalogId: 'cat-6', stock: 8, price: 75000, location_id: 'BR-001', photos: { front: 'checked', back: 'checked', left: 'checked', right: 'checked' }, lastUpdated: '2024-04-24T16:10:00Z', syncStatus: 'Awaiting Audit' },
 ];
+
+// ============ SUPABASE FUNCTIONS ============
+
+export async function getMasterCatalogFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('master_catalog')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('❌ Failed to fetch master catalog from Supabase:', error);
+    useSupabase = false;
+    return MASTER_CATALOG;
+  }
+}
+
+export async function getProductsFromBackend() {
+  const response = await fetch(`${BACKEND_URL}/api/products`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load products: ${response.status}`);
+  }
+
+  const payload = await response.json();
+
+  if (payload?.status !== 'success') {
+    throw new Error(payload?.error || 'Backend returned an error while loading products');
+  }
+
+  return Array.isArray(payload.data) ? payload.data : [];
+}
+
+export async function getInventoryFromSupabase(locationId?: string) {
+  try {
+    let query = supabase.from('branch_inventory').select('*, master_catalog(*)');
+    
+    if (locationId && locationId !== 'ALL') {
+      query = query.eq('location_id', locationId);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('❌ Failed to fetch inventory from Supabase:', error);
+    useSupabase = false;
+    return branchInventory.filter(item => !locationId || locationId === 'ALL' || item.location_id === locationId);
+  }
+}
+
+export async function createInventoryItemInSupabase(data: any) {
+  try {
+    const { data: newItem, error } = await supabase
+      .from('branch_inventory')
+      .insert([{ ...data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return newItem;
+  } catch (error) {
+    console.error('❌ Failed to create inventory item in Supabase:', error);
+    useSupabase = false;
+    const newItem = { ...data, id: Math.random().toString(36).substr(2, 9), lastUpdated: new Date().toISOString() };
+    branchInventory = [newItem, ...branchInventory];
+    return newItem;
+  }
+}
+
+export async function updateInventoryItemInSupabase(id: string, data: any) {
+  try {
+    const { error } = await supabase
+      .from('branch_inventory')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { status: 'success' };
+  } catch (error) {
+    console.error('❌ Failed to update inventory item in Supabase:', error);
+    useSupabase = false;
+    branchInventory = branchInventory.map(item => 
+      item.id === id ? { ...item, ...data, lastUpdated: new Date().toISOString() } : item
+    );
+    return { status: 'success' };
+  }
+}
+
+export async function deleteInventoryItemFromSupabase(id: string) {
+  try {
+    const { error } = await supabase
+      .from('branch_inventory')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { status: 'success' };
+  } catch (error) {
+    console.error('❌ Failed to delete inventory item from Supabase:', error);
+    useSupabase = false;
+    branchInventory = branchInventory.filter(item => item.id !== id);
+    return { status: 'success' };
+  }
+}
 
 export async function fetchBackend(action: string, data: any = {}) {
   await sleep(400); // Simulate network latency
 
   switch (action) {
     case 'login':
-      if (data.username === 'admin' && data.password === 'admin') {
+      if (data.username === 'admin' && (data.password === 'admin' || data.password === 'admin777')) {
         return {
           status: 'success',
           data: {
@@ -65,70 +179,53 @@ export async function fetchBackend(action: string, data: any = {}) {
       return { status: 'error', message: 'Kredensial salah. Gunakan admin/admin atau admin_jkt/admin123' };
 
     case 'getMasterCatalog':
+      if (useSupabase) {
+        const catalogData = await getMasterCatalogFromSupabase();
+        return { status: 'success', data: catalogData };
+      }
       return { status: 'success', data: MASTER_CATALOG };
 
-    case 'getOverview':
-      const locId = data.location_id || 'ALL';
-      const timeframe = data.timeframe || 'weekly';
-      const year = data.year || '2026';
-      const month = data.month || 'April';
-      const week = data.week || 'Week 17';
+    case 'getOverview': {
+      // Hit the real backend endpoint
+      const params = new URLSearchParams({
+        location_id: data.location_id || 'ALL',
+        timeframe: data.timeframe || 'weekly',
+        year: data.year || '2026',
+        month: data.month || 'April',
+        week: data.week || 'Week 17',
+      });
+      const overviewRes = await fetch(`${BACKEND_URL}/api/overview?${params.toString()}`);
+      const overviewJson = await overviewRes.json();
+      return overviewJson;
+    }
 
-      const filtered = branchInventory.filter(item => locId === 'ALL' || item.location_id === locId);
-      const multipliers: Record<string, number> = { 'ALL': 1, 'BR-001': 0.35, 'BR-002': 0.25, 'BR-003': 0.15 };
-      
-      // Dynamic shift based on selections
-      const timeVariation = (year === '2026' ? 1.1 : 0.9) * (month === 'December' ? 1.5 : 1);
-      const m = (multipliers[locId] || 1) * timeVariation;
+    case 'getPromos': {
+      const response = await fetch(`${BACKEND_URL}/api/promos`);
+      return await response.json();
+    }
 
-      let chartData = [];
-      if (timeframe === 'weekly') {
-        chartData = [
-          { name: 'Mon', total: 1400000 * m },
-          { name: 'Tue', total: 1300000 * m },
-          { name: 'Wed', total: 1500000 * m },
-          { name: 'Thu', total: 1278000 * m },
-          { name: 'Fri', total: 1189000 * m },
-          { name: 'Sat', total: 2390000 * m },
-          { name: 'Sun', total: 2490000 * m },
-        ];
-      } else if (timeframe === 'monthly') {
-        chartData = [
-          { name: 'Week 1', total: 3250000 * m },
-          { name: 'Week 2', total: 3280000 * m },
-          { name: 'Week 3', total: 3220000 * m },
-          { name: 'Week 4', total: 3310000 * m },
-        ];
-      } else {
-        chartData = [
-          { name: 'Jan', total: 11200000 * m },
-          { name: 'Feb', total: 11100000 * m },
-          { name: 'Mar', total: 12500000 * m },
-          { name: 'Apr', total: 11400000 * m },
-          { name: 'May', total: 12600000 * m },
-          { name: 'Jun', total: 11300000 * m },
-          { name: 'Jul', total: 12550000 * m },
-          { name: 'Aug', total: 13700000 * m },
-          { name: 'Sep', total: 12650000 * m },
-          { name: 'Oct', total: 12800000 * m },
-          { name: 'Nov', total: 12900000 * m },
-          { name: 'Dec', total: 14100000 * m },
-        ];
-      }
-      
-      return {
-        status: 'success',
-        data: {
-          revenue: Math.floor(12840000 * m * (timeframe === 'monthly' ? 4 : timeframe === 'yearly' ? 48 : 1)),
-          sales: Math.floor(1482 * m),
-          locations: locId === 'ALL' ? 8 : 1,
-          promos: Math.floor(24 * m),
-          inventoryCount: filtered.length,
-          chartData
-        }
-      };
+    case 'createPromo': {
+      const response = await fetch(`${BACKEND_URL}/api/promos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    case 'deletePromo': {
+      const response = await fetch(`${BACKEND_URL}/api/promos/${data.id}`, {
+        method: 'DELETE'
+      });
+      return await response.json();
+    }
 
     case 'getInventory':
+      if (useSupabase) {
+        const targetLoc = data.location_id || 'ALL';
+        const inventoryData = await getInventoryFromSupabase(targetLoc === 'ALL' ? undefined : targetLoc);
+        return { status: 'success', data: inventoryData };
+      }
       const targetLoc = data.location_id || 'ALL';
       const results = branchInventory
         .filter(item => targetLoc === 'ALL' || item.location_id === targetLoc)
@@ -139,6 +236,10 @@ export async function fetchBackend(action: string, data: any = {}) {
       return { status: 'success', data: results };
 
     case 'addInventory':
+      if (useSupabase) {
+        const newItem = await createInventoryItemInSupabase(data);
+        return { status: 'success', data: newItem };
+      }
       const newInvEntry = {
         ...data,
         id: Math.random().toString(36).substr(2, 9),
@@ -148,16 +249,32 @@ export async function fetchBackend(action: string, data: any = {}) {
       return { status: 'success', data: newInvEntry };
 
     case 'updateInventory':
+      if (useSupabase) {
+        return await updateInventoryItemInSupabase(data.id, data);
+      }
       branchInventory = branchInventory.map(item => 
         item.id === data.id ? { ...item, ...data, lastUpdated: new Date().toISOString() } : item
       );
       return { status: 'success' };
 
     case 'deleteInventory':
+      if (useSupabase) {
+        return await deleteInventoryItemFromSupabase(data.id);
+      }
       branchInventory = branchInventory.filter(item => item.id !== data.id);
       return { status: 'success' };
 
+    case 'getBranchSummaries': {
+      const response = await fetch(`${BACKEND_URL}/api/branch-inventory`);
+      return await response.json();
+    }
+
+    case 'getBranchInventoryDetails': {
+      const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${data.id}`);
+      return await response.json();
+    }
+
     default:
-      return { status: 'error', message: 'Action not implemented in Mock API' };
+      return { status: 'error', message: 'Action not implemented' };
   }
 }

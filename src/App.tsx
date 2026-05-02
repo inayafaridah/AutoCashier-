@@ -8,6 +8,7 @@ import * as React from 'react';
 import {AuthProvider, useAuth} from './context/AuthContext';
 import {LocationProvider} from './context/LocationContext';
 import { Toaster } from 'sonner';
+import { initializeDatabase } from './lib/database';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import OverviewPage from './pages/OverviewPage';
@@ -18,16 +19,23 @@ import BroadcastPage from './pages/BroadcastPage';
 import AIAnalysisPage from './pages/AIAnalysisPage';
 import AIInsightsPage from './pages/AIInsightsPage';
 import MasterProductsPage from './pages/MasterProductsPage';
+import AddProductPage from './pages/AddProductPage';
 import BranchInventoryPage from './pages/BranchInventoryPage';
 import BroadcastInboxPage from './pages/BroadcastInboxPage';
 import ProfilePage from './pages/ProfilePage';
+import DetectionTestPage from './pages/DetectionTestPage';
+import LiveDetectionPage from './pages/LiveDetectionPage';
 import {TooltipProvider} from './components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
 const ProtectedLayout = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <LocationProvider>
+      <DashboardLayout>{children}</DashboardLayout>
+    </LocationProvider>
+  );
 };
 
 // Wrapper for standalone protected pages (No Sidebar/Header)
@@ -46,6 +54,10 @@ function AppRoutes() {
       
       <Route path="/catalog" element={<ProtectedLayout><MasterProductsPage /></ProtectedLayout>} />
 
+      <Route path="/master-products" element={<ProtectedLayout><MasterProductsPage /></ProtectedLayout>} />
+
+      <Route path="/add-product" element={<ProtectedLayout><AddProductPage /></ProtectedLayout>} />
+
       <Route path="/monitor" element={<ProtectedLayout><BranchInventoryPage /></ProtectedLayout>} />
 
       <Route path="/inventory" element={<ProtectedLayout><InventoryPage /></ProtectedLayout>} />
@@ -62,6 +74,10 @@ function AppRoutes() {
 
       <Route path="/analysis" element={<ProtectedLayout><AIAnalysisPage /></ProtectedLayout>} />
       <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+      <Route path="/detection-test" element={<ProtectedLayout><DetectionTestPage /></ProtectedLayout>} />
+
+      <Route path="/live-detect" element={<ProtectedLayout><LiveDetectionPage /></ProtectedLayout>} />
+
       <Route path="/settings" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
 
       <Route path="/" element={<Navigate to="/overview" replace />} />
@@ -70,15 +86,18 @@ function AppRoutes() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    // Initialize database connection on app mount
+    initializeDatabase().catch(err => console.error('Database initialization error:', err));
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
-        <LocationProvider>
-          <TooltipProvider>
-            <AppRoutes />
-            <Toaster position="top-right" expand={false} richColors />
-          </TooltipProvider>
-        </LocationProvider>
+        <TooltipProvider>
+          <AppRoutes />
+          <Toaster position="top-right" expand={false} richColors />
+        </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>
   );

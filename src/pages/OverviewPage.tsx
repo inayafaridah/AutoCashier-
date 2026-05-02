@@ -156,9 +156,9 @@ export default function OverviewPage() {
       ) : 'Total Revenue',
       description: null,
       value: `Rp ${(data?.revenue || 0).toLocaleString()}`, 
-      trend: '+12.5%', 
+      trend: `${(data?.revenueChange ?? 0) >= 0 ? '+' : ''}${data?.revenueChange ?? 0}%`, 
       vsLabel: getVsLabel(),
-      isUp: true, 
+      isUp: (data?.revenueChange ?? 0) >= 0, 
       icon: CircleDollarSign, 
       color: 'bg-emerald-50 text-emerald-600',
       shadow: 'hover:shadow-emerald-500/20',
@@ -223,10 +223,53 @@ export default function OverviewPage() {
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-indigo-400">
                   Network Health Score <Info className="w-3 h-3" />
                 </span>
-                <span className="text-lg font-black text-indigo-600">84/100</span>
+                <span className="text-lg font-black text-indigo-600">{data?.healthScore || 0}/100</span>
               </TooltipTrigger>
-              <TooltipContent className="bg-[#0F172A] text-white border-none rounded-xl p-3 shadow-2xl max-w-[220px]">
-                <p className="text-xs font-bold leading-relaxed">A weighted score representing the overall operational and financial health across the entire network.</p>
+              <TooltipContent className="bg-[#0F172A] text-white border border-white/10 rounded-[24px] p-6 shadow-2xl min-w-[280px]">
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1 border-b border-white/10 pb-3">
+                    <p className="text-xs font-black uppercase tracking-widest text-indigo-400">Score Breakdown</p>
+                    <p className="text-[10px] text-white/50 font-bold uppercase italic">Real-time performance metrics</p>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                      <span className="text-white/60">Inventory Coverage</span>
+                      <span className="text-white">{data?.healthBreakdown?.inventory || 0}/30</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.inventory || 0)/30)*100}%` }} />
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                      <span className="text-white/60">Sales Performance</span>
+                      <span className="text-white">{data?.healthBreakdown?.sales || 0}/30</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.sales || 0)/30)*100}%` }} />
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                      <span className="text-white/60">AI Validation Coverage</span>
+                      <span className="text-white">{data?.healthBreakdown?.ai || 0}/20</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <div className="h-full bg-amber-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.ai || 0)/20)*100}%` }} />
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                      <span className="text-white/60">Stock Health Alert</span>
+                      <span className="text-white">{data?.healthBreakdown?.lowStock || 0}/20</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <div className="h-full bg-rose-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.lowStock || 0)/20)*100}%` }} />
+                    </div>
+                  </div>
+
+                  <p className="text-[9px] text-white/40 font-bold leading-relaxed pt-2 border-t border-white/10 italic">
+                    A weighted score based on real-time operational and financial health across the entire network.
+                  </p>
+                </div>
               </TooltipContent>
             </Tooltip>
 

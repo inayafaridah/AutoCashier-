@@ -1,8 +1,8 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {Card, CardContent} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Avatar, AvatarFallback, AvatarImage} from '@/components/ui/avatar';
-import {Shield, UserPlus, Search, Edit2, ShieldAlert, CircleCheck, Trash2, Mail, Lock, User, MapPin} from 'lucide-react';
+import {Shield, UserPlus, Search, Edit2, ShieldAlert, CircleCheck, Trash2, Mail, Lock, User, MapPin, Loader2} from 'lucide-react';
 import {cn} from '@/lib/utils';
 import {
   Select,
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import {Input} from '@/components/ui/input';
 import {toast} from 'sonner';
-import {MOCK_LOCATIONS} from '@/lib/api';
+import {fetchBackend} from '@/lib/api';
 
 export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -30,27 +30,41 @@ export default function UsersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
     role: 'Member',
-    password: ''
+    password: '',
+    branchId: ''
   });
 
   const [editingUser, setEditingUser] = useState<any>(null);
   const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
 
-  const [users, setUsers] = useState([
-    { id: '1', name: 'Super Admin', email: 'admin@autocashier.dev', role: 'Super Admin', status: 'Active', location: 'Pusat' },
-    { id: '2', name: 'Budi Santoso', email: 'budi@loc.jakarta', role: 'Branch Admin', status: 'Active', location: 'Gegerkalong' },
-    { id: '3', name: 'Siti Aminah', email: 'siti@loc.surabaya', role: 'Branch Admin', status: 'Offline', location: 'Surabaya Downtown' },
-    { id: '4', name: 'Andi Wijaya', email: 'andi@loc.bandung', role: 'Branch Admin', status: 'Active', location: 'Bandung Industrial' },
-    { id: '5', name: 'Rina Kartika', email: 'rina@loc.kuningan', role: 'Member', status: 'Active', location: 'Kuningan' },
-    { id: '6', name: 'Reza Pahlevi', email: 'reza@loc.sudirman', role: 'Member', status: 'Offline', location: 'Sudirman' },
-    { id: '7', name: 'Maya Sari', email: 'maya@loc.kemang', role: 'Member', status: 'Active', location: 'Kemang' },
-    { id: '8', name: 'Dedi Kurniawan', email: 'dedi@loc.menteng', role: 'Member', status: 'Active', location: 'Menteng' },
-  ]);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [uRes, bRes] = await Promise.all([
+        fetchBackend('getUsers'),
+        fetchBackend('getBranchSummaries')
+      ]);
+      
+      if (uRes.status === 'success') setUsers(uRes.data);
+      if (bRes.status === 'success') setBranches(bRes.data.branches || bRes.data);
+    } catch (err) {
+      toast.error('Failed to sync network identities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filteredUsers = users.filter(user => {
     const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
@@ -59,44 +73,71 @@ export default function UsersPage() {
     return matchesRole && matchesSearch;
   });
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const createdUser = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      status: 'Active',
-      location: 'Unassigned'
-    };
-
-    setUsers([createdUser, ...users]);
-    setIsAddModalOpen(false);
-    toast.success('Identity created successfully');
-    setNewUser({ name: '', email: '', role: 'Member', password: '' });
+    try {
+      const res = await fetchBackend('createUser', newUser);
+      if (res.status === 'success') {
+        toast.success('Identity created successfully');
+        setIsAddModalOpen(false);
+        setNewUser({ name: '', email: '', role: 'Member', password: '', branchId: '' });
+        loadData();
+      } else {
+        toast.error(res.message || 'Failed to create identity');
+      }
+    } catch (err) {
+      toast.error('Network connection error');
+    }
   };
 
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!editingUser.name || !editingUser.email) {
       toast.error('Name and Email are required');
       return;
     }
 
-    setUsers(users.map(u => u.id === editingUser.id ? editingUser : u));
-    setIsEditModalOpen(false);
-    toast.success('Identity updated successfully');
+    try {
+      const res = await fetchBackend('updateUser', editingUser, { id: editingUser.id });
+      if (res.status === 'success') {
+        toast.success('Identity updated successfully');
+        setIsEditModalOpen(false);
+        loadData();
+      } else {
+        toast.error(res.message || 'Failed to update identity');
+      }
+    } catch (err) {
+      toast.error('Network connection error');
+    }
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!userToDelete) return;
-    setUsers(users.filter(u => u.id !== userToDelete.id));
-    setIsDeleteModalOpen(false);
-    toast.success(`Identity for ${userToDelete.name} revoked`);
+    try {
+      const res = await fetchBackend('deleteUser', {}, { id: userToDelete.id });
+      if (res.status === 'success') {
+        toast.success(`Identity for ${userToDelete.name} revoked`);
+        setIsDeleteModalOpen(false);
+        loadData();
+      } else {
+        toast.error(res.message || 'Failed to revoke identity');
+      }
+    } catch (err) {
+      toast.error('Network connection error');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+         <p className="text-gray-400 font-black uppercase tracking-widest text-[10px]">Synchronizing Identities...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -171,6 +212,30 @@ export default function UsersPage() {
                   </div>
                 </div>
               </div>
+
+              {newUser.role === 'Branch Admin' && (
+                <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assign Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                    <Select 
+                      value={newUser.branchId} 
+                      onValueChange={(val) => setNewUser({...newUser, branchId: val})}
+                    >
+                      <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 pr-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
+                        <SelectValue placeholder="Select Branch" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
+                        {branches.map(loc => (
+                          <SelectItem key={loc.id} value={loc.id} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">
+                            {loc.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4 font-sans">
               <Button 
@@ -389,15 +454,15 @@ export default function UsersPage() {
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                   <Select 
-                    value={editingUser?.location} 
-                    onValueChange={(val) => setEditingUser({...editingUser, location: val})}
+                    value={editingUser?.branchId} 
+                    onValueChange={(val) => setEditingUser({...editingUser, branchId: val})}
                   >
                     <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 pr-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
                       <SelectValue placeholder="Select Location" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
-                      {MOCK_LOCATIONS.filter(loc => loc.id !== 'ALL').map(loc => (
-                        <SelectItem key={loc.id} value={loc.name} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">
+                      {branches.map(loc => (
+                        <SelectItem key={loc.id} value={loc.id} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">
                           {loc.name}
                         </SelectItem>
                       ))}

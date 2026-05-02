@@ -1,12 +1,12 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {Card, CardContent} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
-import {Plus, Tag, MapPin, Trash2, Edit3, CircleCheck, Sparkles, Image as ImageIcon, Upload, Percent, Banknote} from 'lucide-react';
+import {Plus, Tag, MapPin, Trash2, Edit3, CircleCheck, Sparkles, Image as ImageIcon, Upload, Percent, Banknote, Loader2} from 'lucide-react';
 import {useAuth} from '@/context/AuthContext';
 import {useLocation} from '@/context/LocationContext';
-import {MOCK_LOCATIONS} from '@/lib/api';
+import {fetchBackend, MOCK_LOCATIONS} from '@/lib/api';
 import {cn} from '@/lib/utils';
 import {
   Dialog,
@@ -33,53 +33,84 @@ export default function PromoPage() {
   const [targetType, setTargetType] = useState('ALL');
   const [discountType, setDiscountType] = useState('PERCENTAGE');
   const [form, setForm] = useState({ title: '', code: '', discount: '', scope: 'ALL', image: '' });
-
-  const isSuperAdmin = user?.role === 'super_admin';
   
-  const [promos, setPromos] = useState([
-    { id: '1', code: 'HELLO2026', title: 'Grand New Year 20%', discount: '20%', type: 'Percentage', scope: 'ALL', status: 'Active', image: 'https://images.unsplash.com/photo-1511920170033-f83969a4c348?w=800&auto=format&fit=crop&q=60' },
-    { id: '2', code: 'BR1SPECIAL', title: 'Gegerkalong Local Deal', discount: 'Rp 15k', type: 'Fixed', scope: 'BR-001', status: 'Active', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=60' },
-    { id: '3', code: 'FLASHDEAL', title: 'Weekend Flash Sale', discount: '30%', type: 'Percentage', scope: 'BR-002', status: 'Scheduled', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&auto=format&fit=crop&q=60' },
-    { id: '4', code: 'LATTEART', title: 'Free Latte Topping', discount: '100%', type: 'Item', scope: 'ALL', status: 'Expired', image: 'https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=800&auto=format&fit=crop&q=60' },
-  ]);
+  const [promos, setPromos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  const loadPromos = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchBackend('getPromos');
+      if (res.status === 'success') {
+        setPromos(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPromos();
+  }, []);
 
   const filteredPromos = isSuperAdmin 
     ? promos 
     : promos.filter(p => p.scope === 'ALL' || p.scope === currentLocation);
 
-  const handleAdd = () => {
-    const scope = isSuperAdmin ? (targetType === 'ALL' ? 'ALL' : form.scope) : (currentLocation === 'ALL' ? 'BR-001' : currentLocation);
+  const handleAdd = async () => {
+    const scope = isSuperAdmin ? (targetType === 'ALL' ? 'ALL' : form.scope) : (currentLocation === 'ALL' ? 'ALL' : currentLocation);
     
-    if (isSuperAdmin && targetType === 'SPECIFIC' && !form.scope) {
-       toast.error("Please select a target branch");
-       return;
-    }
-
     if (!form.title || !form.code || !form.discount) {
-      toast.error("Please fill in all required fields");
+      toast.error("Wajib isi Nama, Kode, dan Nilai diskon.");
       return;
     }
 
-    const newPromo = {
-      ...form,
-      id: Math.random().toString(36).substr(2, 9),
-      type: discountType === 'PERCENTAGE' ? 'Percentage' : 'Fixed',
-      discount: discountType === 'PERCENTAGE' ? `${form.discount}%` : `Rp ${parseInt(form.discount).toLocaleString()}`,
-      scope,
-      status: 'Active',
-      image: form.image || 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=60'
-    };
+    try {
+      const res = await fetchBackend('createPromo', {
+        title: form.title,
+        code: form.code,
+        discount_value: Number(form.discount),
+        discount_type: discountType === 'PERCENTAGE' ? 'Percentage' : 'Fixed',
+        scope: scope,
+        image_url: form.image
+      });
 
-    setPromos([newPromo, ...promos]);
-    toast.success("Campaign launched successfully!");
-    setIsAddOpen(false);
-    setForm({ title: '', code: '', discount: '', scope: 'ALL', image: '' });
+      if (res.status === 'success') {
+        toast.success("Campaign launched successfully!");
+        setIsAddOpen(false);
+        setForm({ title: '', code: '', discount: '', scope: 'ALL', image: '' });
+        loadPromos();
+      } else {
+        toast.error(res.error || "Gagal membuat promo.");
+      }
+    } catch (err) {
+      toast.error("Network error");
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setPromos(promos.filter(p => p.id !== id));
-    toast.info("Campaign terminated");
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetchBackend('deletePromo', { id });
+      if (res.status === 'success') {
+        toast.info("Campaign terminated");
+        loadPromos();
+      }
+    } catch (err) {
+      toast.error("Gagal menghapus promo");
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+         <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">Loading Campaigns...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -212,7 +243,7 @@ export default function PromoPage() {
                 <Card key={promo.id} className="rounded-[40px] border-none shadow-2xl shadow-indigo-600/5 bg-white overflow-hidden group hover:shadow-indigo-100 transition-all duration-500">
                   <div className="aspect-[16/9] relative overflow-hidden">
                      <img 
-                        src={promo.image} 
+                        src={promo.image_url || 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=60'} 
                         alt={promo.title}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                      />
@@ -231,7 +262,7 @@ export default function PromoPage() {
                         <div className="flex items-center gap-2 mt-1">
                            <MapPin className="w-3 h-3 text-white/60" />
                            <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                              Scope: {promo.scope === 'ALL' ? 'Global Network' : MOCK_LOCATIONS.find(l => l.id === promo.scope)?.name || promo.scope}
+                              Scope: {promo.scope === 'ALL' ? 'Global Network' : promo.scope}
                            </span>
                         </div>
                      </div>
@@ -246,7 +277,9 @@ export default function PromoPage() {
                         </div>
                         <div className="text-right">
                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Discount Value</span>
-                           <span className="font-black text-3xl tracking-tighter text-gray-900">{promo.discount}</span>
+                           <span className="font-black text-3xl tracking-tighter text-gray-900">
+                              {promo.discount_type === 'Percentage' ? `${promo.discount_value}%` : `Rp ${Number(promo.discount_value).toLocaleString()}`}
+                           </span>
                         </div>
                      </div>
                      

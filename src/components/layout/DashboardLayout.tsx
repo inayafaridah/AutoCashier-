@@ -22,7 +22,8 @@ import {
   MonitorCheck,
   Settings,
   Moon,
-  Sun
+  Sun,
+  ScanSearch,
 } from 'lucide-react';
 import {useAuth} from '@/context/AuthContext';
 import {useLocation} from '@/context/LocationContext';
@@ -50,13 +51,16 @@ const SUPER_ADMIN_NAV = [
   {path: '/users', label: 'User Management', icon: Users},
   {path: '/broadcast', label: 'Broadcast', icon: Megaphone},
   {path: '/insights', label: 'AI Insights', icon: BrainCircuit},
+  {path: '/live-detect', label: 'Live Detection', icon: ScanSearch},
 ];
 
 const BRANCH_ADMIN_NAV = [
   {path: '/overview', label: 'Overview', icon: LayoutDashboard},
   {path: '/inventory', label: 'Inventory', icon: Archive},
+  {path: '/monitor', label: 'Monitor', icon: MonitorCheck},
   {path: '/promo', label: 'Promo', icon: Tag},
   {path: '/analysis', label: 'AI Insights', icon: BrainCircuit},
+  {path: '/live-detect', label: 'Live Detection', icon: ScanSearch},
 ];
 
 export default function DashboardLayout({children}: {children: ReactNode}) {
