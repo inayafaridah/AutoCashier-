@@ -32,6 +32,10 @@ interface DetectionResult {
 
 const SCAN_INTERVAL_MS = 1500;
 const DETECT_BOX_RATIO = 0.72; // fraction of video HEIGHT for the square scan box
+const PRODUCT_CACHE_TTL_MS = 60_000;
+
+const normalizeLabel = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
@@ -42,6 +46,11 @@ export default function LiveDetectionPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const detectingRef = useRef(false);
+  const productsCacheRef = useRef<any[] | null>(null);
+  const productsFetchedAtRef = useRef(0);
+  const productsFetchPromiseRef = useRef<Promise<any[] | null> | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -71,70 +80,118 @@ export default function LiveDetectionPage() {
     }
   }, []);
 
+  // ------ Fetch matching product from backend ------
+  const ensureProductsCache = useCallback(async () => {
+    const now = Date.now();
+    if (productsCacheRef.current && now - productsFetchedAtRef.current < PRODUCT_CACHE_TTL_MS) {
+      return productsCacheRef.current;
+    }
+
+    if (productsFetchPromiseRef.current) {
+      return productsFetchPromiseRef.current;
+    }
+
+    productsFetchPromiseRef.current = (async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/products`);
+        const data = await res.json();
+        if (res.ok && data.status === 'success' && Array.isArray(data.data)) {
+          productsCacheRef.current = data.data;
+          productsFetchedAtRef.current = Date.now();
+          return data.data;
+        }
+      } catch (_) {}
+      return productsCacheRef.current;
+    })();
+
+    const result = await productsFetchPromiseRef.current;
+    productsFetchPromiseRef.current = null;
+    return result;
+  }, []);
+
+  const fetchMatchingProduct = useCallback(async (label: string) => {
+    const normalizedLabel = normalizeLabel(label);
+    if (!normalizedLabel) {
+      setMatchedProduct(null);
+      return;
+    }
+
+    try {
+      const products = await ensureProductsCache();
+      if (!Array.isArray(products)) {
+        setMatchedProduct(null);
+        return;
+      }
+
+      const found = products.find((p: any) => {
+        const aiLabel = p.ai_label ? normalizeLabel(p.ai_label) : '';
+        const name = p.name ? normalizeLabel(p.name) : '';
+        return (aiLabel && aiLabel === normalizedLabel) || (name && name.includes(normalizedLabel));
+      });
+      setMatchedProduct(found ?? null);
+    } catch (_) {}
+  }, [ensureProductsCache]);
+
   // ------ Crop frame to detection box, then send to YOLO ------
   const runDetection = useCallback(async () => {
-    if (!videoRef.current || !cameraReady || detecting) return;
+    if (!videoRef.current || !cameraReady || detectingRef.current) return;
     const video = videoRef.current;
     if (video.videoWidth === 0) return;
 
-    // Calculate the square crop box centered in the video frame
-    // Box is DETECT_BOX_RATIO of video HEIGHT (to match the UI which is height-based)
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const boxSize = Math.floor(vh * DETECT_BOX_RATIO);
-    const bx = Math.floor((vw - boxSize) / 2);
-    const by = Math.floor((vh - boxSize) / 2);
+    detectingRef.current = true;
+    setDetecting(true);
+    const t0 = performance.now();
 
-    // Crop the detection area
-    const canvas = document.createElement('canvas');
-    canvas.width = boxSize;
-    canvas.height = boxSize;
-    canvas.getContext('2d')?.drawImage(video, bx, by, boxSize, boxSize, 0, 0, boxSize, boxSize);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      setDetecting(true);
-      const t0 = performance.now();
-      try {
-        const form = new FormData();
-        form.append('image', blob, 'frame.jpg');
-        const res = await fetch(`${BACKEND_URL}/api/detect`, { method: 'POST', body: form });
-        const data = await res.json();
-        if (res.ok && data.status === 'success') {
-          const det = data as DetectionResult;
-          setScanCount(c => c + 1);
-          setResult(det);
-
-          // If detected, try to match with DB
-          if (det.detected && det.label) {
-            fetchMatchingProduct(det.label);
-          } else {
-            setMatchedProduct(null);
-          }
-
-          const elapsed = performance.now() - t0;
-          setFps(Math.round(1000 / elapsed));
-          lastScanRef.current = Date.now();
-        }
-      } catch (_) {}
-      finally { setDetecting(false); }
-    }, 'image/jpeg', 0.82);
-  }, [cameraReady, detecting]);
-
-  // ------ Fetch matching product from backend ------
-  const fetchMatchingProduct = async (label: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/products`);
+      // Calculate the square crop box centered in the video frame
+      // Box is DETECT_BOX_RATIO of video HEIGHT (to match the UI which is height-based)
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const boxSize = Math.floor(vh * DETECT_BOX_RATIO);
+      const bx = Math.floor((vw - boxSize) / 2);
+      const by = Math.floor((vh - boxSize) / 2);
+
+      const canvas = captureCanvasRef.current ?? document.createElement('canvas');
+      captureCanvasRef.current = canvas;
+      canvas.width = boxSize;
+      canvas.height = boxSize;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, bx, by, boxSize, boxSize, 0, 0, boxSize, boxSize);
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/jpeg', 0.82);
+      });
+
+      if (!blob) return;
+
+      const form = new FormData();
+      form.append('image', blob, 'frame.jpg');
+      const res = await fetch(`${BACKEND_URL}/api/detect`, { method: 'POST', body: form });
       const data = await res.json();
-      if (data.status === 'success' && Array.isArray(data.data)) {
-        const found = data.data.find((p: any) =>
-          p.ai_label?.toLowerCase() === label.toLowerCase() ||
-          p.name?.toLowerCase().includes(label.toLowerCase())
-        );
-        setMatchedProduct(found ?? null);
+      if (res.ok && data.status === 'success') {
+        const det = data as DetectionResult;
+        setScanCount(c => c + 1);
+        setResult(det);
+
+        // If detected, try to match with DB
+        if (det.detected && det.label) {
+          fetchMatchingProduct(det.label);
+        } else {
+          setMatchedProduct(null);
+        }
+
+        const elapsed = performance.now() - t0;
+        setFps(Math.round(1000 / elapsed));
+        lastScanRef.current = Date.now();
       }
-    } catch (_) {}
-  };
+    } catch (_) {
+    } finally {
+      detectingRef.current = false;
+      setDetecting(false);
+    }
+  }, [cameraReady, fetchMatchingProduct]);
 
   // ------ Auto-scan interval (continuous) ------
   useEffect(() => {
@@ -145,6 +202,10 @@ export default function LiveDetectionPage() {
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [scanning, cameraReady, runDetection]);
+
+  useEffect(() => {
+    ensureProductsCache();
+  }, [ensureProductsCache]);
 
   useEffect(() => {
     startCamera();
