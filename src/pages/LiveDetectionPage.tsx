@@ -41,9 +41,15 @@ interface ProductSummary {
   stock?: number | null;
 }
 
+interface ProductCacheEntry extends ProductSummary {
+  normalized_ai_label?: string;
+  normalized_name?: string;
+}
+
 const SCAN_INTERVAL_MS = 1500;
 const DETECT_BOX_RATIO = 0.72; // fraction of video HEIGHT for the square scan box
 const PRODUCT_CACHE_TTL_MS = 60_000;
+const CAPTURE_JPEG_QUALITY = 0.82;
 
 const normalizeLabel = (value: string) =>
   value
@@ -64,9 +70,9 @@ export default function LiveDetectionPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const detectingRef = useRef(false);
-  const productsCacheRef = useRef<ProductSummary[] | null>(null);
+  const productsCacheRef = useRef<ProductCacheEntry[] | null>(null);
   const productsFetchedAtRef = useRef(0);
-  const productsFetchPromiseRef = useRef<Promise<ProductSummary[] | null> | null>(null);
+  const productsFetchPromiseRef = useRef<Promise<ProductCacheEntry[] | null> | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -112,9 +118,14 @@ export default function LiveDetectionPage() {
         const res = await fetch(`${BACKEND_URL}/api/products`);
         const data = await res.json();
         if (res.ok && data.status === 'success' && Array.isArray(data.data)) {
-          productsCacheRef.current = data.data;
+          const normalizedData: ProductCacheEntry[] = data.data.map((product: ProductSummary) => ({
+            ...product,
+            normalized_ai_label: product.ai_label ? normalizeLabel(product.ai_label) : '',
+            normalized_name: product.name ? normalizeLabel(product.name) : '',
+          }));
+          productsCacheRef.current = normalizedData;
           productsFetchedAtRef.current = Date.now();
-          return data.data;
+          return normalizedData;
         }
       } catch (err) {
         if (import.meta.env.DEV) {
@@ -144,15 +155,17 @@ export default function LiveDetectionPage() {
       }
 
       const matchesNormalized = (candidate: string) => {
+        if (!candidate) return false;
         if (candidate === normalizedLabel) return true;
-        const tokens = candidate.split(/\s+/);
+        if (normalizedLabel.includes(' ')) {
+          return candidate.includes(normalizedLabel);
+        }
+        const tokens = candidate.split(/\s+/).filter(Boolean);
         return tokens.includes(normalizedLabel);
       };
 
       const found = products.find((p) => {
-        const aiLabel = p.ai_label ? normalizeLabel(p.ai_label) : '';
-        const name = p.name ? normalizeLabel(p.name) : '';
-        return (aiLabel && matchesNormalized(aiLabel)) || (name && matchesNormalized(name));
+        return matchesNormalized(p.normalized_ai_label ?? '') || matchesNormalized(p.normalized_name ?? '');
       });
       setMatchedProduct(found ?? null);
     } catch (err) {
@@ -195,7 +208,7 @@ export default function LiveDetectionPage() {
       ctx.drawImage(video, bx, by, boxSize, boxSize, 0, 0, boxSize, boxSize);
 
       const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.82);
+        canvas.toBlob(resolve, 'image/jpeg', CAPTURE_JPEG_QUALITY);
       });
 
       if (!blob) {
