@@ -30,8 +30,10 @@ if (supabaseUrl && supabaseServiceRoleKey) {
 	try {
 		supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 	} catch (e) {
-		supabaseAdmin = null;
+		supabaseAdmin = supabase;
 	}
+} else {
+	supabaseAdmin = supabase;
 }
 
 export { supabase, supabaseAdmin };

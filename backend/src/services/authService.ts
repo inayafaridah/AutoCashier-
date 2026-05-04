@@ -15,9 +15,9 @@ export async function loginWithUsername(username: string, password: string) {
     return { ok: false, error: 'INVALID_CREDENTIALS' };
   }
 
-  const user = data as User & { password?: string };
+  const user = data as User & { password_hash?: string; password?: string };
 
-  const hash = (user as any).password;
+  const hash = user.password_hash || user.password;
   const match = hash ? await comparePassword(password, hash) : false;
   if (!match) return { ok: false, error: 'INVALID_CREDENTIALS' };
 

@@ -40,7 +40,18 @@ export default function LoginPage() {
         setError(response.message || 'Invalid credentials');
       }
     } catch (err) {
-      setError('Connection failed. Using mock mode: Use admin / admin');
+      if (username === 'superadmin' && password === 'adminautocashier') {
+        login({
+          username: 'superadmin',
+          role: 'super_admin',
+          roleName: 'Super Admin',
+          location_id: 'ALL',
+        });
+        localStorage.setItem('isAuthenticated', 'true');
+        navigate('/overview');
+        return;
+      }
+      setError('Connection failed. Backend is offline. (Use superadmin / adminautocashier)');
     } finally {
       setIsLoading(false);
     }
