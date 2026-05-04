@@ -30,6 +30,17 @@ interface DetectionResult {
   all_detections?: { class: string; confidence: number }[];
 }
 
+interface ProductSummary {
+  id: string;
+  name?: string | null;
+  ai_label?: string | null;
+  category?: string | null;
+  image_url?: string | null;
+  sku?: string | null;
+  price?: number | null;
+  stock?: number | null;
+}
+
 const SCAN_INTERVAL_MS = 1500;
 const DETECT_BOX_RATIO = 0.72; // fraction of video HEIGHT for the square scan box
 const PRODUCT_CACHE_TTL_MS = 60_000;
@@ -48,16 +59,16 @@ export default function LiveDetectionPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const detectingRef = useRef(false);
-  const productsCacheRef = useRef<any[] | null>(null);
+  const productsCacheRef = useRef<ProductSummary[] | null>(null);
   const productsFetchedAtRef = useRef(0);
-  const productsFetchPromiseRef = useRef<Promise<any[] | null> | null>(null);
+  const productsFetchPromiseRef = useRef<Promise<ProductSummary[] | null> | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [scanning, setScanning] = useState(true);
   const [result, setResult] = useState<DetectionResult | null>(null);
-  const [matchedProduct, setMatchedProduct] = useState<any | null>(null);
+  const [matchedProduct, setMatchedProduct] = useState<ProductSummary | null>(null);
   const [scanCount, setScanCount] = useState(0);
   const [fps, setFps] = useState<number | null>(null);
   const lastScanRef = useRef<number>(0);
@@ -123,7 +134,7 @@ export default function LiveDetectionPage() {
         return;
       }
 
-      const found = products.find((p: any) => {
+      const found = products.find((p) => {
         const aiLabel = p.ai_label ? normalizeLabel(p.ai_label) : '';
         const name = p.name ? normalizeLabel(p.name) : '';
         return (aiLabel && aiLabel === normalizedLabel) || (name && name.includes(normalizedLabel));
