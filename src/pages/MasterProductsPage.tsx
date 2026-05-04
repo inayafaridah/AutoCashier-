@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { getProductsFromBackend, BACKEND_URL } from '@/lib/api';
+import { fetchBackend, BACKEND_URL } from '@/lib/api';
 
 // Matches actual DB schema: id, sku, name, price, stock, ai_label, category, image_url, created_at
 type ProductRecord = {
@@ -323,8 +323,12 @@ export default function MasterProductsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getProductsFromBackend();
-      setProducts(data as ProductRecord[]);
+      const res = await fetchBackend('getMasterCatalog');
+      if (res.status === 'success') {
+        setProducts(res.data as ProductRecord[]);
+      } else {
+        throw new Error(res.message || 'Gagal memuat master data');
+      }
     } catch (err: any) {
       setError(err?.message || 'Gagal memuat master data dari database');
       setProducts([]);

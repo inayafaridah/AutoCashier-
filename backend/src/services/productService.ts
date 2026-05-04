@@ -191,3 +191,19 @@ export async function initializeProductInAllBranches(productId: string, initialP
     return { ok: false, error: err };
   }
 }
+
+export async function searchProductByLabel(label: string) {
+  try {
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client
+      .from('products')
+      .select(PRODUCT_COLUMNS)
+      .eq('ai_label', label)
+      .maybeSingle();
+      
+    if (error) throw error;
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err };
+  }
+}

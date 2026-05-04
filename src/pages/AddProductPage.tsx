@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { AddProductForm, ProductFormData } from '@/components/AddProductForm';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
+import { BACKEND_URL } from '@/lib/api';
 
 export default function AddProductPage() {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ export default function AddProductPage() {
       }
 
       // Send ke backend untuk YOLO validation
-      const response = await fetch('http://localhost:5000/api/products', {
+      const response = await fetch(`${BACKEND_URL}/api/products`, {
         method: 'POST',
         body: uploadFormData,
       });

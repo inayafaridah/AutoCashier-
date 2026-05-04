@@ -11,6 +11,17 @@ export async function listProducts(req: Request, res: Response) {
   return res.json({ status: 'success', data: result.data });
 }
 
+export async function searchProduct(req: Request, res: Response) {
+  const { label } = req.query;
+  if (!label) return res.status(400).json({ status: 'error', error: 'Label is required' });
+  
+  const result = await productService.searchProductByLabel(label as string);
+  if (!result.ok) return res.status(500).json({ status: 'error', error: result.error });
+  if (!result.data) return res.status(404).json({ status: 'error', error: 'Product not found' });
+  
+  return res.json({ status: 'success', data: result.data });
+}
+
 export async function getProduct(req: Request, res: Response) {
   const { id } = req.params;
   const result = await productService.getProductById(id);

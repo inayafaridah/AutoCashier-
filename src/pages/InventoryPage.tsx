@@ -95,8 +95,8 @@ export default function InventoryPage() {
       fetchBackend('getMasterCatalog')
     ]);
     
-    if (invRes.status === 'success') setInventory(invRes.data);
-    if (catRes.status === 'success') setMasterCatalog(catRes.data);
+    if (invRes.status === 'success') setInventory(invRes.data || []);
+    if (catRes.status === 'success') setMasterCatalog(catRes.data || []);
     
     setLoading(false);
   };
@@ -512,7 +512,7 @@ export default function InventoryPage() {
               <CardContent className="p-8">
                 <h4 className="text-white/60 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Total Assets</h4>
                 <div className="text-4xl font-black tracking-tighter font-mono">
-                  Rp {inventory.reduce((acc, curr) => acc + (curr.price * curr.stock), 0).toLocaleString()}
+                  Rp {(inventory || []).reduce((acc, curr) => acc + ((curr.price || 0) * (curr.stock || 0)), 0).toLocaleString()}
                 </div>
                 <p className="text-white/40 text-[10px] font-bold mt-2 uppercase tracking-widest">Calculated current value</p>
                 <div className="absolute top-4 right-4 p-2 bg-white/10 rounded-xl">
@@ -524,7 +524,7 @@ export default function InventoryPage() {
               <CardContent className="p-8">
                 <h4 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Low Stock Alerts</h4>
                 <div className="text-4xl font-black tracking-tighter font-mono text-rose-500">
-                  {inventory.filter(i => i.stock < 20).length} Items
+                  {(inventory || []).filter(i => (i.stock || 0) < 20).length} Items
                 </div>
                 <p className="text-gray-400 text-[10px] font-bold mt-2 uppercase tracking-widest">Requires attention</p>
                 <div className="absolute top-4 right-4 p-2 bg-rose-50 rounded-xl">
@@ -535,7 +535,7 @@ export default function InventoryPage() {
             <Card className="rounded-[32px] border-none shadow-sm bg-white overflow-hidden">
               <CardContent className="p-8">
                 <h4 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">SKU Count</h4>
-                <div className="text-4xl font-black tracking-tighter font-mono text-gray-900">{inventory.length}</div>
+                <div className="text-4xl font-black tracking-tighter font-mono text-gray-900">{(inventory || []).length}</div>
                 <p className="text-gray-400 text-[10px] font-bold mt-2 uppercase tracking-widest">Total unique products</p>
                 <div className="absolute top-4 right-4 p-2 bg-gray-50 rounded-xl">
                    <Package className="w-5 h-5 text-gray-400" />
@@ -571,7 +571,7 @@ export default function InventoryPage() {
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-50">
-                        {inventory.map((item) => (
+                        {(inventory || []).map((item) => (
                            <tr key={item.id} className="group hover:bg-gray-50/50 transition-colors">
                               <td className="py-5 pl-2">
                                  <div className="flex items-center gap-4">

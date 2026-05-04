@@ -10,6 +10,7 @@ import * as userController from '../controllers/userController';
 import * as branchInventoryController from '../controllers/branchInventoryController';
 import * as broadcastController from '../controllers/broadcastController';
 import * as branchController from '../controllers/branchController';
+import * as transactionController from '../controllers/transactionController';
 
 const router = Router();
 
@@ -43,5 +44,9 @@ router.get('/branch-inventory/:id', branchInventoryController.getBranchInventory
 router.post('/branch-inventory', branchInventoryController.addInventory);
 router.patch('/branch-inventory/:id', branchInventoryController.updateInventory);
 router.delete('/branch-inventory/:id', branchInventoryController.deleteInventory);
+
+// Transactions & Settings
+router.post('/checkout', transactionController.checkout);
+router.get('/store-settings', transactionController.getStoreSettings);
 
 export default router;

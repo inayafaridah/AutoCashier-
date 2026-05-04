@@ -135,7 +135,7 @@ export default function BranchInventoryPage() {
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Active Branches</span>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-2xl font-black text-gray-900 tracking-tighter">{branches.length}</span>
+                    <span className="text-2xl font-black text-gray-900 tracking-tighter">{(branches || []).length}</span>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={loadBranchSummaries} className="h-14 w-14 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all active:scale-95">
@@ -146,7 +146,7 @@ export default function BranchInventoryPage() {
 
             {/* Branch Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto w-full">
-              {branches.map((b, idx) => (
+              {(branches || []).map((b, idx) => (
                 <motion.div
                   key={b.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -239,7 +239,7 @@ export default function BranchInventoryPage() {
                                <span className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em]">Operational Integrity Module</span>
                              </div>
                              <h3 className="text-5xl font-black tracking-tighter text-white leading-none">
-                               Network Score: <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 italic ml-2">{networkStats.integrityScore}%</span>
+                               Network Score: <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 italic ml-2">{networkStats?.integrityScore || 0}%</span>
                              </h3>
                            </div>
                         </div>
@@ -252,7 +252,7 @@ export default function BranchInventoryPage() {
                      
                      <div className="flex items-center gap-20 px-12 py-10 bg-white/5 backdrop-blur-3xl rounded-[40px] border border-white/10 shadow-2xl">
                         <div className="flex flex-col items-center">
-                           <span className="text-7xl font-black tracking-tighter text-white font-mono leading-none">{networkStats.activeUnits}</span>
+                           <span className="text-7xl font-black tracking-tighter text-white font-mono leading-none">{networkStats?.activeUnits || 0}</span>
                            <div className="flex items-center gap-2 mt-4">
                              <Box className="w-4 h-4 text-indigo-400" />
                              <span className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em]">Active Nodes</span>
@@ -260,7 +260,7 @@ export default function BranchInventoryPage() {
                         </div>
                         <div className="w-px h-24 bg-white/10" />
                         <div className="flex flex-col items-center">
-                           <span className="text-7xl font-black tracking-tighter text-rose-500 font-mono leading-none">{networkStats.discrepancies}</span>
+                           <span className="text-7xl font-black tracking-tighter text-rose-500 font-mono leading-none">{networkStats?.discrepancies || 0}</span>
                            <div className="flex items-center gap-2 mt-4">
                              <AlertCircle className="w-4 h-4 text-rose-500" />
                              <span className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em]">Desync Alerts</span>
@@ -287,7 +287,7 @@ export default function BranchInventoryPage() {
               <div className="flex items-center gap-4">
                  <Badge className="bg-indigo-600 text-white border-none py-4 px-10 rounded-[24px] font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl shadow-indigo-600/30">
                     <Activity className="w-4 h-4 mr-3 inline-block" />
-                    Live Monitoring: {branches.find(b => b.id === selectedBranch)?.name}
+                    Live Monitoring: {(branches || []).find(b => b.id === selectedBranch)?.name || 'Unknown Branch'}
                  </Badge>
                  <Button onClick={() => setIsModalOpen(true)} className="h-14 px-8 rounded-[24px] bg-white border border-gray-100 text-gray-900 font-black uppercase tracking-widest text-[10px] hover:bg-gray-50 shadow-sm transition-all">
                     <MonitorCheck className="w-4 h-4 mr-2" /> Synchronized Export

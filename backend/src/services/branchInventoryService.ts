@@ -17,7 +17,13 @@ export async function getBranchSummaries() {
 
     if (!branches || branches.length === 0) {
       console.warn('[branchInventoryService] ⚠️ No branches found in database.');
-      return { ok: true, data: [] };
+      return { 
+        ok: true, 
+        data: { 
+          branches: [], 
+          summary: { activeUnits: 0, discrepancies: 0, totalValue: 0, integrityScore: 100 } 
+        } 
+      };
     }
 
     // 2. Get stock data with product price
