@@ -45,30 +45,31 @@ export async function createProduct(req: Request, res: Response) {
     if (files?.imageFront?.[0]) imagePaths.push({ angle: 'front', path: files.imageFront[0].path });
     if (files?.imageBack?.[0])  imagePaths.push({ angle: 'back',  path: files.imageBack[0].path });
 
-    if (imagePaths.length < 4) {
+    if (imagePaths.length === 0) {
       return res.status(400).json({
         status: 'error',
-        error: 'Wajib mengunggah 4 sudut foto: Kiri, Kanan, Depan, dan Belakang (imageBack).'
+        error: 'Wajib mengunggah minimal satu foto produk untuk identifikasi AI.'
       });
     }
 
-    // 2. Run YOLO Validation on the 3 images
+    // 2. Run YOLO Validation
     const yoloResult = await validateWithYolo(imagePaths);
     if (!yoloResult.ok) {
       return res.status(500).json({ status: 'error', error: 'Gagal menjalankan validasi YOLO: ' + yoloResult.error });
     }
 
-    const failedImages = yoloResult.results.filter(r => !r.detected);
-    if (failedImages.length > 0) {
+    // Filter images where detection actually succeeded
+    const detectedImages = yoloResult.results.filter(r => r.detected);
+    if (detectedImages.length === 0) {
       return res.status(422).json({
         status: 'error',
-        error: `Deteksi objek gagal pada ${failedImages.length} foto. Pastikan produk terlihat jelas dan pencahayaan cukup.`,
+        error: `AI gagal mengenali produk pada foto yang diunggah. Pastikan produk terlihat jelas dan bukan objek terlarang (seperti wajah manusia).`,
         details: yoloResult.results
       });
     }
 
-    // 3. Get AI label from YOLO (highest confidence result)
-    const bestDetection = yoloResult.results.reduce((best, current) =>
+    // 3. Get AI label from YOLO (highest confidence result from SUCCESSFUL detections)
+    const bestDetection = detectedImages.reduce((best, current) =>
       (current.confidence > (best?.confidence ?? 0)) ? current : best
     );
     const aiLabel = bestDetection?.class ?? null;

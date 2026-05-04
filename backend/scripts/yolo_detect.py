@@ -48,6 +48,21 @@ def detect(image_data_str):
             continue
 
         try:
+            # Classes that should NEVER be used as a primary product label
+            BLACKLIST = {
+                'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 
+                'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 
+                'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 
+                'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 
+                'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 
+                'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 
+                'surfboard', 'tennis racket', 'chair', 'couch', 'potted plant', 'bed', 
+                'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 
+                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 
+                'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 
+                'hair drier', 'toothbrush'
+            }
+
             detections = model(img_path, verbose=False)
 
             detected = False
@@ -61,7 +76,9 @@ def detect(image_data_str):
                         conf = float(box.conf[0])
                         name = model.names[int(box.cls[0])]
                         all_boxes.append({"class": name, "confidence": round(conf, 4)})
-                        if conf > max_conf:
+                        
+                        # Only consider non-blacklisted items as the "Product"
+                        if name not in BLACKLIST and conf > max_conf:
                             detected = True
                             max_conf = conf
                             cls_name = name

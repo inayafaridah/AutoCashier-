@@ -29,10 +29,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 if (supabaseUrl && supabaseServiceRoleKey) {
 	try {
 		supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+		console.log('[Supabase] 🛡️  Admin client initialized with Service Role Key');
 	} catch (e) {
+		console.error('[Supabase] ❌ Failed to initialize Admin client:', e);
 		supabaseAdmin = supabase;
 	}
 } else {
+	console.warn('[Supabase] ⚠️  Service Role Key missing. Admin features will be disabled.');
 	supabaseAdmin = supabase;
 }
 

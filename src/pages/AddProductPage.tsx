@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Camera, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Camera, Loader2, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddProductForm, ProductFormData } from '@/components/AddProductForm';
 import { toast } from 'sonner';
@@ -121,20 +121,85 @@ export default function AddProductPage() {
         <AddProductForm onSubmit={handleSubmit} loading={isLoading} />
 
         {isLoading && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md">
-            <div className="text-center space-y-4">
-              <div className="relative mx-auto h-20 w-20">
-                <div className="absolute inset-0 rounded-3xl border-4 border-indigo-100" />
-                <div className="absolute inset-0 animate-spin rounded-3xl border-4 border-indigo-600 border-t-transparent" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-indigo-600 animate-pulse" />
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-900/40 backdrop-blur-2xl transition-all duration-700">
+            {/* Ambient Background Elements */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-[120px] animate-pulse" />
+              <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px] animate-pulse delay-1000" />
+            </div>
+
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative z-10 flex flex-col items-center max-w-md w-full px-8 text-center"
+            >
+              {/* Animated Icon Scanner */}
+              <div className="relative mb-12">
+                <div className="absolute inset-0 bg-indigo-500/30 rounded-[40px] blur-2xl animate-pulse" />
+                <div className="relative w-32 h-32 bg-white rounded-[40px] shadow-2xl flex items-center justify-center overflow-hidden border border-white/50">
+                  {/* Scanning Line Animation */}
+                  <motion.div 
+                    animate={{ top: ['0%', '100%', '0%'] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                    className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent z-10 shadow-[0_0_15px_rgba(99,102,241,0.8)]"
+                  />
+                  <Sparkles className="h-12 w-12 text-indigo-600 relative z-0" />
+                </div>
+                
+                {/* Orbital Rings */}
+                <div className="absolute -inset-4 border border-indigo-500/20 rounded-[48px] animate-[spin_10s_linear_infinite]" />
+                <div className="absolute -inset-8 border border-purple-500/10 rounded-[56px] animate-[spin_15s_linear_infinite_reverse]" />
+              </div>
+
+              {/* Progress Text */}
+              <div className="space-y-4 mb-10">
+                <motion.h3 
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  className="text-3xl font-black text-white tracking-tight"
+                >
+                  Neural Processing
+                </motion.h3>
+                <div className="flex flex-col gap-2">
+                  <p className="text-indigo-100/60 font-medium tracking-wide text-sm uppercase">YOLO v8 Vision Core Active</p>
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden border border-white/5">
+                    <motion.div 
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 15, ease: "linear" }}
+                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-black text-gray-900">Processing Product</h3>
-                <p className="text-sm font-medium text-gray-500">Optimizing images and validating with YOLO v8...</p>
+
+              {/* Step Indicators */}
+              <div className="w-full space-y-3 bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
+                {[
+                  { label: "Optimizing Perspectives", status: "complete" },
+                  { label: "YOLO Object Detection", status: "active" },
+                  { label: "Synthesizing AI Labels", status: "pending" },
+                  { label: "Initializing Branch Sync", status: "pending" }
+                ].map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-4 text-left">
+                    {step.status === "complete" ? (
+                      <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <CheckCircle2 className="w-3 h-3 text-white" />
+                      </div>
+                    ) : step.status === "active" ? (
+                      <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                    )}
+                    <span className={`text-xs font-bold uppercase tracking-widest ${
+                      step.status === "active" ? "text-white" : step.status === "complete" ? "text-emerald-400" : "text-white/30"
+                    }`}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </div>

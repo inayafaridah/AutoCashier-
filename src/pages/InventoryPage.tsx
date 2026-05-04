@@ -230,8 +230,10 @@ export default function InventoryPage() {
              <FileDown className="w-4 h-4 mr-2" /> PDF Export
            </Button>
            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger render={<Button className="bg-indigo-600 hover:bg-indigo-700 h-12 px-6 rounded-2xl shadow-xl shadow-indigo-600/20 font-bold border-none" />}>
-                <Plus className="w-4 h-4 mr-2" /> Inventory Intake
+              <DialogTrigger asChild>
+                <Button className="bg-indigo-600 hover:bg-indigo-700 h-12 px-6 rounded-2xl shadow-xl shadow-indigo-600/20 font-bold border-none">
+                  <Plus className="w-4 h-4 mr-2" /> Inventory Intake
+                </Button>
               </DialogTrigger>
               <DialogContent className="rounded-[40px] sm:max-w-[700px] p-0 overflow-hidden border-none shadow-2xl">
                 <ScrollArea className="max-h-[95vh]">
@@ -285,21 +287,20 @@ export default function InventoryPage() {
                               <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Search Master Catalog</Label>
                                 <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                                  <PopoverTrigger 
-                                    render={
+                                  <PopoverTrigger asChild>
                                       <Button
                                         variant="outline"
                                         role="combobox"
                                         aria-expanded={comboboxOpen}
                                         className="w-full justify-between rounded-2xl h-14 bg-gray-200/50 border-none px-4 font-bold text-left hover:bg-gray-200 transition-all focus:ring-2 focus:ring-indigo-600"
-                                      />
-                                    }
-                                  >
-                                      <div className="flex items-center gap-2">
-                                        {form.name ? form.name : "Choose Global Product..."}
-                                      </div>
-                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      >
+                                        <div className="flex items-center gap-2 text-slate-700">
+                                          {form.name ? form.name : "Choose Global Product..."}
+                                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </div>
+                                      </Button>
                                   </PopoverTrigger>
+
                                   <PopoverContent className="w-[300px] p-0 rounded-2xl border-none shadow-2xl overflow-hidden" align="start">
                                     <Command className="border-none">
                                       <CommandInput 

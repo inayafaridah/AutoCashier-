@@ -38,6 +38,7 @@ export async function getProductById(id: string) {
 export async function createProduct(payload: Omit<Product, 'id' | 'created_at'>) {
   try {
     const client = supabaseAdmin || supabase;
+    console.log(`[productService] 🏗️  Creating product using ${client === supabaseAdmin ? 'ADMIN' : 'ANON'} client`);
 
     const safePayload: any = {
       sku: payload.sku,
@@ -73,6 +74,7 @@ export async function insertProductImages(
 ) {
   try {
     const client = supabaseAdmin || supabase;
+    console.log(`[productService] 📸 Inserting product images using ${client === supabaseAdmin ? 'ADMIN' : 'ANON'} client`);
     const rows = images.map(img => ({
       product_id: productId,
       angle: img.angle,
