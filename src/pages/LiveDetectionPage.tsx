@@ -46,7 +46,12 @@ const DETECT_BOX_RATIO = 0.72; // fraction of video HEIGHT for the square scan b
 const PRODUCT_CACHE_TTL_MS = 60_000;
 
 const normalizeLabel = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  value
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
@@ -138,8 +143,11 @@ export default function LiveDetectionPage() {
         return;
       }
 
-      const matchesNormalized = (candidate: string) =>
-        candidate === normalizedLabel || candidate.split(' ').includes(normalizedLabel);
+      const matchesNormalized = (candidate: string) => {
+        if (candidate === normalizedLabel) return true;
+        const tokens = candidate.split(/\s+/);
+        return tokens.includes(normalizedLabel);
+      };
 
       const found = products.find((p) => {
         const aiLabel = p.ai_label ? normalizeLabel(p.ai_label) : '';
@@ -181,14 +189,18 @@ export default function LiveDetectionPage() {
       canvas.height = boxSize;
 
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        throw new Error('Canvas context unavailable');
+      }
       ctx.drawImage(video, bx, by, boxSize, boxSize, 0, 0, boxSize, boxSize);
 
       const blob = await new Promise<Blob | null>((resolve) => {
         canvas.toBlob(resolve, 'image/jpeg', 0.82);
       });
 
-      if (!blob) return;
+      if (!blob) {
+        throw new Error('Failed to capture frame');
+      }
 
       const form = new FormData();
       form.append('image', blob, 'frame.jpg');
