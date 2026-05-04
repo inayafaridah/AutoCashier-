@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { detectProduct } from '../controllers/detectionController';
+import { detectProduct, scanAndMatch } from '../controllers/detectionController';
 
 const router = Router();
 
@@ -16,5 +16,8 @@ const memUpload = multer({
 
 // POST /api/detect — process image in memory, never saved to uploads/
 router.post('/', memUpload.single('image'), detectProduct);
+
+// POST /api/detect/scan-match — detect + match against master catalog in one call
+router.post('/scan-match', memUpload.single('image'), scanAndMatch);
 
 export default router;

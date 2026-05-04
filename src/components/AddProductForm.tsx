@@ -69,6 +69,7 @@ export function AddProductForm({ onSubmit, loading = false }: AddProductFormProp
     name: '',
     category: '',
     basePrice: 0,
+    stock: 0,
     description: '',
     images: {
       left: emptyImage(),
@@ -486,6 +487,18 @@ export function AddProductForm({ onSubmit, loading = false }: AddProductFormProp
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="stock" className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock Quantity</Label>
+              <Input
+                id="stock"
+                type="number"
+                placeholder="0"
+                value={formData.stock || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, stock: Number(e.target.value) }))}
+                className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 px-4 font-bold shadow-sm focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all"
+              />
+            </div>
+
 
 
             <div className="space-y-2">
@@ -517,7 +530,7 @@ export function AddProductForm({ onSubmit, loading = false }: AddProductFormProp
                 )}
               </Button>
               <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                All fields and 3 photos are mandatory
+                All fields and 4 photos are mandatory
               </p>
             </div>
           </form>

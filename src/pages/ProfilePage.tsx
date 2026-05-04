@@ -16,21 +16,53 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
+import { useLocation } from '@/context/LocationContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { fetchBackend } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
+  const { locationName } = useLocation();
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [formData, setFormData] = useState({
+    name: user?.username || '',
+    email: user?.email || '',
+    password: ''
+  });
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!user?.id) return;
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetchBackend('updateUser', {
+        id: user.id,
+        name: formData.name,
+        email: formData.email,
+        ...(formData.password ? { password: formData.password } : {})
+      });
+
+      if (res.status === 'success') {
+        // Update local context
+        login({
+          ...user,
+          username: formData.name,
+          email: formData.email
+        });
+        
+        setShowSuccess(true);
+        toast.success("Profile Updated", { description: "Changes synced with central database." });
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        throw new Error(res.message || 'Update failed');
+      }
+    } catch (err: any) {
+      toast.error("Update Failed", { description: err.message });
+    } finally {
       setIsSaving(false);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    }, 1200);
+    }
   };
 
   const handleLogout = () => {
@@ -97,7 +129,7 @@ export default function ProfilePage() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl -mr-16 -mt-16"></div>
               <p className="text-indigo-100 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Session Data</p>
               <h3 className="text-xl font-bold">Last Login: Today</h3>
-              <p className="text-indigo-100/60 text-xs mt-4">Jakarta, ID • 182.253.xx.xx</p>
+              <p className="text-indigo-100/60 text-xs mt-4">{locationName}, ID • 182.253.xx.xx</p>
             </div>
           </div>
 
@@ -120,7 +152,8 @@ export default function ProfilePage() {
                   <div className="relative group">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                     <Input 
-                      defaultValue={user?.username || 'Budi Santoso'}
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 transition-all text-sm font-medium"
                     />
                   </div>
@@ -131,7 +164,8 @@ export default function ProfilePage() {
                   <div className="relative group">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                     <Input 
-                      defaultValue="budi.s@autocashier.id"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 transition-all text-sm font-medium"
                     />
                   </div>
@@ -143,7 +177,8 @@ export default function ProfilePage() {
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                     <Input 
                       defaultValue="+62 812-****-7890"
-                      className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 transition-all text-sm font-medium"
+                      readOnly
+                      className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 pl-12 cursor-not-allowed text-sm font-medium"
                     />
                   </div>
                 </div>
@@ -154,7 +189,7 @@ export default function ProfilePage() {
                     <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
                       readOnly
-                      defaultValue="Global Network Access"
+                      defaultValue={user?.roleName || "Global Network Access"}
                       className="bg-gray-50/80 border-gray-100 rounded-2xl h-14 pl-12 cursor-not-allowed italic text-sm"
                     />
                   </div>
@@ -175,29 +210,14 @@ export default function ProfilePage() {
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Current Password</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">New Secure Password</label>
                   <Input 
                     type="password"
-                    placeholder="••••••••••••"
+                    placeholder="Enter new password to change"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 focus:bg-white focus:ring-4 focus:ring-purple-100 focus:border-purple-200 transition-all"
                   />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">New Secure Password</label>
-                    <Input 
-                      type="password"
-                      className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 focus:bg-white focus:ring-4 focus:ring-purple-100 focus:border-purple-200 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Verify Password</label>
-                    <Input 
-                      type="password"
-                      className="bg-gray-50/50 border-gray-100 rounded-2xl h-14 focus:bg-white focus:ring-4 focus:ring-purple-100 focus:border-purple-200 transition-all"
-                    />
-                  </div>
                 </div>
               </div>
             </section>

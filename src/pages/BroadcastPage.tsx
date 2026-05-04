@@ -171,7 +171,7 @@ export default function BroadcastPage() {
                       ? 'This message will be sent to all registered Members (Push Notifications enabled).' 
                       : audience === 'SPECIFIC_BRANCH' 
                         ? `This message will be sent to admins at ${activeBranches.find(b => b.id === scopeBranch)?.name || 'the selected branch'}.`
-                        : 'This message will be instantly delivered as a push notification to all 34 active branch managers.'}
+                        : `This message will be instantly delivered as a push notification to all ${activeBranches.length} active branch managers.`}
                   </p>
                </div>
                <Button 

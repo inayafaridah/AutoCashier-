@@ -2,10 +2,12 @@ import {createContext, useContext, useState, useEffect, ReactNode} from 'react';
 import {LocationID} from '@/lib/api';
 
 interface User {
+  id: string;
   username: string;
   roleName: string;
   role: 'super_admin' | 'branch_admin';
   location_id: LocationID;
+  email?: string;
 }
 
 interface AuthContextType {

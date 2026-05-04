@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { getProductsFromBackend, BACKEND_URL } from '@/lib/api';
+import { fetchBackend, BACKEND_URL } from '@/lib/api';
 
 // Matches actual DB schema: id, sku, name, price, stock, ai_label, category, image_url, created_at
 type ProductRecord = {
@@ -72,19 +72,16 @@ function ProductEditModal({
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/products/${product.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          category: form.category.trim() || null,
-          price: Number(form.price),
-          stock: Number(form.stock),
-          ai_label: form.ai_label.trim() || null,
-        }),
+      const res = await fetchBackend('updateProduct', {
+        id: product.id,
+        name: form.name.trim(),
+        category: form.category.trim() || null,
+        price: Number(form.price),
+        stock: Number(form.stock),
+        ai_label: form.ai_label.trim() || null,
       });
-      const data = await res.json();
-      if (!res.ok || data.status !== 'success') throw new Error(data.error || `HTTP ${res.status}`);
+
+      if (res.status !== 'success') throw new Error(res.error || res.message || 'Gagal menyimpan');
       onSaved({ ...product, ...form, price: Number(form.price), stock: Number(form.stock) });
     } catch (err: any) {
       setSaveError(err.message);
@@ -323,8 +320,12 @@ export default function MasterProductsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getProductsFromBackend();
-      setProducts(data as ProductRecord[]);
+      const res = await fetchBackend('getProducts');
+      if (res.status === 'success') {
+        setProducts(res.data as ProductRecord[]);
+      } else {
+        throw new Error(res.message || 'Gagal memuat produk');
+      }
     } catch (err: any) {
       setError(err?.message || 'Gagal memuat master data dari database');
       setProducts([]);
@@ -339,13 +340,12 @@ export default function MasterProductsPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/products/${deleteTarget.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok && data.status === 'success') {
+      const res = await fetchBackend('deleteProduct', { id: deleteTarget.id });
+      if (res.status === 'success') {
         setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
         setDeleteTarget(null);
       } else {
-        alert('Gagal menghapus: ' + (data.error || 'Unknown error'));
+        alert('Gagal menghapus: ' + (res.error || res.message || 'Unknown error'));
       }
     } catch (err: any) {
       alert('Gagal menghapus produk: ' + err.message);

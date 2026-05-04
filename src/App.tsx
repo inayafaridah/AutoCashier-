@@ -24,7 +24,7 @@ import BranchInventoryPage from './pages/BranchInventoryPage';
 import BroadcastInboxPage from './pages/BroadcastInboxPage';
 import ProfilePage from './pages/ProfilePage';
 import DetectionTestPage from './pages/DetectionTestPage';
-import LiveDetectionPage from './pages/LiveDetectionPage';
+import ProductScannerPage from './pages/ProductScannerPage';
 import {TooltipProvider} from './components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
@@ -76,7 +76,7 @@ function AppRoutes() {
       <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
       <Route path="/detection-test" element={<ProtectedLayout><DetectionTestPage /></ProtectedLayout>} />
 
-      <Route path="/live-detect" element={<ProtectedLayout><LiveDetectionPage /></ProtectedLayout>} />
+      <Route path="/live-detect" element={<ProtectedLayout><ProductScannerPage /></ProtectedLayout>} />
 
       <Route path="/settings" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
 

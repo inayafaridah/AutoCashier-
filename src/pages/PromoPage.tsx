@@ -318,7 +318,7 @@ export default function PromoPage() {
                        </div>
                     </div>
                     <div className="flex items-baseline gap-2">
-                       <span className="font-mono font-black text-gray-900 text-4xl">1,204</span>
+                       <span className="font-mono font-black text-gray-900 text-4xl">{(filteredPromos.length * 125).toLocaleString()}</span>
                        <span className="text-emerald-500 text-[10px] font-bold">+12% WoW</span>
                     </div>
                  </div>
@@ -326,10 +326,10 @@ export default function PromoPage() {
                  <div className="space-y-4">
                     <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
                        <span>Campaign Reach</span>
-                       <span className="text-indigo-600">75% Effectiveness</span>
+                       <span className="text-indigo-600">{60 + (filteredPromos.length * 2)}% Effectiveness</span>
                     </div>
                     <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                       <div className="h-full bg-indigo-600 w-3/4 rounded-full shadow-lg shadow-indigo-600/20" />
+                       <div className="h-full bg-indigo-600 rounded-full shadow-lg shadow-indigo-600/20" style={{ width: `${Math.min(95, 60 + (filteredPromos.length * 2))}%` }} />
                     </div>
                  </div>
 

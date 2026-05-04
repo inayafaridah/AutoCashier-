@@ -6,6 +6,7 @@ import debugRoutes from './debug';
 import detectionRoutes from './detection';
 import overviewRoutes from './overview';
 import promoRoutes from './promos';
+import aiRoutes from './ai';
 import * as userController from '../controllers/userController';
 import * as branchInventoryController from '../controllers/branchInventoryController';
 import * as broadcastController from '../controllers/broadcastController';
@@ -25,6 +26,7 @@ router.use('/detect', detectionRoutes);
 
 router.use('/overview', overviewRoutes);
 router.use('/promos', promoRoutes);
+router.use('/ai', aiRoutes);
 
 // Broadcasts
 router.get('/broadcasts', broadcastController.getBroadcasts);

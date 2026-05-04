@@ -38,53 +38,18 @@ let branchInventory = [
 
 // ============ SUPABASE FUNCTIONS ============
 
-export async function getMasterCatalogFromSupabase() {
-  try {
-    const { data, error } = await supabase
-      .from('master_catalog')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('❌ Failed to fetch master catalog from Supabase:', error);
-    useSupabase = false;
-    return MASTER_CATALOG;
-  }
-}
-
-export async function getProductsFromBackend() {
-  const response = await fetch(`${BACKEND_URL}/api/products`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to load products: ${response.status}`);
-  }
-
-  const payload = await response.json();
-
-  if (payload?.status !== 'success') {
-    throw new Error(payload?.error || 'Backend returned an error while loading products');
-  }
-
-  return Array.isArray(payload.data) ? payload.data : [];
-}
+// ============ SUPABASE & BACKEND HELPERS ============
 
 export async function getInventoryFromSupabase(locationId?: string) {
   try {
     let query = supabase.from('branch_inventory').select('*, master_catalog(*)');
-    
+
     if (locationId && locationId !== 'ALL') {
       query = query.eq('location_id', locationId);
     }
-    
+
     const { data, error } = await query.order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return data || [];
   } catch (error) {
@@ -102,20 +67,22 @@ export async function fetchBackend(action: string, data: any = {}) {
       const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: data.username, 
-          password: data.password 
+        body: JSON.stringify({
+          username: data.username,
+          password: data.password
         })
       });
-      
+
       const resData = await response.json();
-      
+
       if (response.ok && resData.status === 'success') {
         // Map backend user to frontend expectations
         return {
           status: 'success',
           data: {
+            id: resData.data.user.id,
             username: resData.data.user.full_name || resData.data.user.username,
+            email: resData.data.user.email,
             roleName: resData.data.user.role === 'super_admin' ? 'Super Admin (Pusat)' : 'Branch Admin',
             role: resData.data.user.role,
             location_id: resData.data.user.branch_id || 'ALL',
@@ -123,22 +90,18 @@ export async function fetchBackend(action: string, data: any = {}) {
           }
         };
       }
-      
-      return { 
-        status: 'error', 
-        message: resData.error === 'USER_NOT_FOUND' 
-          ? 'Pengguna tidak ditemukan' 
-          : resData.error === 'INVALID_PASSWORD' 
-            ? 'Password salah' 
-            : 'Login gagal. Silakan coba lagi.' 
+
+      return {
+        status: 'error',
+        message: resData.error === 'USER_NOT_FOUND'
+          ? 'Pengguna tidak ditemukan'
+          : resData.error === 'INVALID_PASSWORD'
+            ? 'Password salah'
+            : 'Login gagal. Silakan coba lagi.'
       };
     }
 
     case 'getMasterCatalog':
-      if (useSupabase) {
-        const catalogData = await getMasterCatalogFromSupabase();
-        return { status: 'success', data: catalogData };
-      }
       return { status: 'success', data: MASTER_CATALOG };
 
     case 'getOverview': {
@@ -153,6 +116,36 @@ export async function fetchBackend(action: string, data: any = {}) {
       const overviewRes = await fetch(`${BACKEND_URL}/api/overview?${params.toString()}`);
       const overviewJson = await overviewRes.json();
       return overviewJson;
+    }
+
+    case 'getProducts': {
+      const response = await fetch(`${BACKEND_URL}/api/products`);
+      return await response.json();
+    }
+
+    case 'createProduct': {
+      const response = await fetch(`${BACKEND_URL}/api/products`, {
+        method: 'POST',
+        body: data // FormData
+      });
+      return await response.json();
+    }
+
+    case 'updateProduct': {
+      const { id, ...updateData } = data;
+      const response = await fetch(`${BACKEND_URL}/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+      return await response.json();
+    }
+
+    case 'deleteProduct': {
+      const response = await fetch(`${BACKEND_URL}/api/products/${data.id}`, {
+        method: 'DELETE'
+      });
+      return await response.json();
     }
 
     case 'getPromos': {
@@ -186,8 +179,8 @@ export async function fetchBackend(action: string, data: any = {}) {
       const results = branchInventory
         .filter(item => targetLoc === 'ALL' || item.location_id === targetLoc)
         .map(inv => {
-           const catalogItem = MASTER_CATALOG.find(c => c.id === inv.catalogId);
-           return { ...inv, ...catalogItem, id: inv.id };
+          const catalogItem = MASTER_CATALOG.find(c => c.id === inv.catalogId);
+          return { ...inv, ...catalogItem, id: inv.id };
         });
       return { status: 'success', data: results };
 
@@ -199,7 +192,7 @@ export async function fetchBackend(action: string, data: any = {}) {
       });
       return await response.json();
     }
- 
+
     case 'updateInventory': {
       const { id, ...updateData } = data;
       const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${id}`, {
@@ -209,7 +202,7 @@ export async function fetchBackend(action: string, data: any = {}) {
       });
       return await response.json();
     }
- 
+
     case 'deleteInventory': {
       const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${data.id}${data.location_id ? `?branch_id=${data.location_id}` : ''}`, {
         method: 'DELETE'
@@ -236,7 +229,7 @@ export async function fetchBackend(action: string, data: any = {}) {
       const response = await fetch(`${BACKEND_URL}/api/branches`);
       return await response.json();
     }
- 
+
     case 'getBroadcasts': {
       const response = await fetch(`${BACKEND_URL}/api/broadcasts`);
       return await response.json();
@@ -272,6 +265,24 @@ export async function fetchBackend(action: string, data: any = {}) {
     case 'deleteUser': {
       const response = await fetch(`${BACKEND_URL}/api/users/${data.id}`, {
         method: 'DELETE'
+      });
+      return await response.json();
+    }
+
+    case 'aiInsight': {
+      const response = await fetch(`${BACKEND_URL}/api/ai/insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    case 'aiAutoAnalysis': {
+      const response = await fetch(`${BACKEND_URL}/api/ai/auto-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
       });
       return await response.json();
     }

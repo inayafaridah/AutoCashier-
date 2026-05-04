@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {Card, CardContent} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -13,7 +13,8 @@ import {
   Calendar,
   MoreVertical,
   X,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -24,75 +25,53 @@ import {
 } from "@/components/ui/dialog";
 import {cn} from '@/lib/utils';
 import {motion, AnimatePresence} from 'motion/react';
-
-const MOCK_MESSAGES = [
-  {
-    id: '1',
-    title: 'System Maintenance Window',
-    preview: 'Cloud synchronization will be offline for 15 minutes tonight for high-priority security patches.',
-    body: 'Greetings Captain. Our engineering team has scheduled a brief maintenance window starting at 24:00 UTC. During this time, cloud synchronization and AI analysis features may experience intermittent connectivity. This work is necessary to deploy critical high-priority security patches and ensure the long-term reliability of the Enterprise UI network nodes. No action is required on your part.',
-    time: '2 hours ago',
-    date: 'April 30, 2026',
-    status: 'unread',
-    tags: ['System', 'Maintenance']
-  },
-  {
-    id: '2',
-    title: 'New Stock Intake Guidelines',
-    preview: 'Mandatory 4-sided photos required for all new product intakes starting immediately.',
-    body: 'Attention all operational units. To improve AI recognition accuracy and inventory auditing, we are mandating a strict 4-sided photo protocol for all new product intakes. Every entry must include clear shots from the front, back, right, and left angles. Entries failing to meet these criteria will be flagged for review. Thank you for maintaining our enterprise data integrity.',
-    time: '5 hours ago',
-    date: 'April 30, 2026',
-    status: 'unread',
-    tags: ['Policy', 'Inventory']
-  },
-  {
-    id: '3',
-    title: 'Grand Ramadan Promo Activation',
-    preview: 'Global campaign "Grand Ramadan Special" is now live across all urban branch clusters.',
-    body: 'The enterprise-wide "Grand Ramadan Special" campaign has been successfully deployed. All participating locations should verify their local promo caches and ensure point-of-sale displays are aligned with the new digital assets. Our AI predicts a 22% increase in Arabica Signature orders during the evening shift sessions.',
-    time: 'Yesterday',
-    date: 'April 29, 2026',
-    status: 'read',
-    tags: ['Campaign', 'Live']
-  },
-  {
-    id: '4',
-    title: 'Regional Supply Chain Alert: Bandung',
-    preview: 'Logistics delay expected for Arabica Signature blends in the Bandung industrial cluster.',
-    body: 'Regional logistics reports indicate a 4-hour delay in supply chain nodes servicing the Bandung industrial cluster. Branch managers in the affected areas are advised to adjust local buffer stocks accordingly. Neural analysis suggests using the "Morning Classic" dynamic bundle to bridge the gap until secondary replenishment arrives.',
-    time: '1 day ago',
-    date: 'April 29, 2026',
-    status: 'read',
-    tags: ['Logistics', 'Alert']
-  },
-  {
-    id: '5',
-    title: 'Monthly Performance Review Available',
-    preview: 'Your April Network Efficiency report is now ready for review in the AI Insights hub.',
-    body: 'The monthly performance benchmarks for the reporting period of April 2026 have been finalized. Your network nodes achieved a combined efficiency rating of 94.2%. Detailed optimization vectors and efficiency leak analyses are now available in your personal AI Insights dashboard.',
-    time: '3 days ago',
-    date: 'April 27, 2026',
-    status: 'read',
-    tags: ['Report', 'AI']
-  }
-];
+import {fetchBackend} from '@/lib/api';
+import {useAuth} from '@/context/AuthContext';
 
 export default function BroadcastInboxPage() {
+  const {user} = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMessage, setSelectedMessage] = useState<typeof MOCK_MESSAGES[0] | null>(null);
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredMessages = messages.filter(m => 
-    m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.preview.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleOpenMessage = (msg: typeof MOCK_MESSAGES[0]) => {
-    setSelectedMessage(msg);
-    if (msg.status === 'unread') {
-      setMessages(prev => prev.map(m => m.id === msg.id ? {...m, status: 'read' as const} : m));
+  const loadMessages = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchBackend('getBroadcasts');
+      if (res.status === 'success') {
+        setMessages(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load broadcasts:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    loadMessages();
+  }, []);
+
+  const filteredMessages = messages.filter(m => {
+    // 1. Filter by user relevance
+    const isRelevant = 
+      user?.role === 'super_admin' || 
+      m.audience === 'ALL' || 
+      (m.audience === 'BRANCH' && m.target_id === user?.location_id);
+    
+    if (!isRelevant) return false;
+
+    // 2. Filter by search query
+    const matchesSearch = 
+      m.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.body.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesSearch;
+  });
+
+  const handleOpenMessage = (msg: any) => {
+    setSelectedMessage(msg);
   };
 
   return (
@@ -115,7 +94,12 @@ export default function BroadcastInboxPage() {
       </div>
 
       <div className="space-y-4">
-        {filteredMessages.length > 0 ? (
+        {loading ? (
+          <div className="py-24 flex flex-col items-center justify-center space-y-4">
+            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Syncing with Broadcast Hub...</p>
+          </div>
+        ) : filteredMessages.length > 0 ? (
           filteredMessages.map((msg, index) => (
             <motion.div
               key={msg.id}
@@ -125,55 +109,41 @@ export default function BroadcastInboxPage() {
             >
               <Card 
                 className={cn(
-                  "rounded-[32px] border-none shadow-sm group hover:shadow-xl hover:shadow-indigo-600/5 transition-all cursor-pointer overflow-hidden",
-                  msg.status === 'unread' ? "bg-white ring-2 ring-indigo-50" : "bg-white/80"
+                   "rounded-[32px] border-none shadow-sm group hover:shadow-xl hover:shadow-indigo-600/5 transition-all cursor-pointer overflow-hidden bg-white"
                 )}
                 onClick={() => handleOpenMessage(msg)}
               >
                 <CardContent className="p-0">
-                  <div className="flex items-stretch min-h-[110px]">
-                     {/* Blue Indicator Line */}
-                     <div className={cn(
-                       "w-1.5 shrink-0 transition-opacity duration-500",
-                       msg.status === 'unread' ? "bg-indigo-600" : "bg-transparent"
-                     )} />
-                     
-                     <div className="flex-1 p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
-                        <div className="flex items-center gap-4 shrink-0">
-                           <div className={cn(
-                             "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
-                             msg.status === 'unread' ? "bg-indigo-50 text-indigo-600" : "bg-gray-50 text-gray-400"
-                           )}>
-                              <Bell className="w-5 h-5" />
-                           </div>
-                        </div>
+                   <div className="flex items-stretch min-h-[110px]">
+                      <div className="w-1.5 shrink-0 bg-indigo-600 transition-opacity duration-500" />
+                      
+                      <div className="flex-1 p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
+                         <div className="flex items-center gap-4 shrink-0">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 bg-indigo-50 text-indigo-600">
+                               <Bell className="w-5 h-5" />
+                            </div>
+                         </div>
 
-                        <div className="flex-1 min-w-0 space-y-1">
-                           <div className="flex items-center gap-2">
-                              {msg.status === 'unread' && (
-                                <div className="w-2 h-2 rounded-full bg-indigo-600" />
-                              )}
-                              <h3 className={cn(
-                                "text-lg font-black tracking-tight truncate group-hover:text-indigo-600 transition-colors",
-                                msg.status === 'unread' ? "text-gray-900" : "text-gray-500"
-                              )}>
-                                {msg.title}
-                              </h3>
-                           </div>
-                           <p className="text-gray-400 text-xs font-bold leading-relaxed truncate md:whitespace-normal line-clamp-1">
-                              {msg.preview}
-                           </p>
-                        </div>
+                         <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                               <h3 className="text-lg font-black tracking-tight truncate group-hover:text-indigo-600 transition-colors text-gray-900">
+                                 {msg.subject}
+                               </h3>
+                            </div>
+                            <p className="text-gray-400 text-xs font-bold leading-relaxed truncate md:whitespace-normal line-clamp-1">
+                               {msg.body}
+                            </p>
+                         </div>
 
-                        <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 md:pl-6 md:border-l border-gray-100">
-                           <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full">
-                              <Clock className="w-3 h-3" />
-                              {msg.time}
-                           </div>
-                           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
-                        </div>
-                     </div>
-                  </div>
+                         <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 md:pl-6 md:border-l border-gray-100">
+                            <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full">
+                               <Clock className="w-3 h-3" />
+                               {new Date(msg.created_at).toLocaleDateString()}
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                         </div>
+                      </div>
+                   </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -209,7 +179,7 @@ export default function BroadcastInboxPage() {
                      <div className="flex items-center gap-3">
                         <div className="text-right">
                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200/50">Origin Date</p>
-                           <p className="text-sm font-black tracking-tight">{selectedMessage.date}</p>
+                           <p className="text-sm font-black tracking-tight">{new Date(selectedMessage.created_at).toLocaleDateString()}</p>
                         </div>
                         <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center">
                            <Calendar className="w-4 h-4 text-white/40" />
@@ -217,14 +187,12 @@ export default function BroadcastInboxPage() {
                      </div>
                   </div>
                   <DialogTitle className="text-3xl font-black tracking-tighter leading-tight relative z-10">
-                     {selectedMessage.title}
+                     {selectedMessage.subject}
                   </DialogTitle>
                   <div className="flex flex-wrap gap-2 mt-6 relative z-10">
-                     {selectedMessage.tags.map(tag => (
-                        <span key={tag} className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold tracking-widest text-white/50 uppercase border border-white/5">
-                           #{tag}
-                        </span>
-                     ))}
+                      <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold tracking-widest text-white/50 uppercase border border-white/5">
+                        #System
+                      </span>
                   </div>
                </div>
                

@@ -167,8 +167,8 @@ export default function OverviewPage() {
     { 
       label: 'Total Products', 
       value: data?.inventoryCount || 0, 
-      trend: isSuperAdmin ? null : '+4.2%', 
-      isUp: true, 
+      trend: null, 
+      isUp: (data?.inventoryCount || 0) > 20, 
       icon: ShoppingBag, 
       color: 'bg-indigo-50 text-indigo-600',
       shadow: 'hover:shadow-indigo-500/20',
@@ -177,24 +177,14 @@ export default function OverviewPage() {
     { 
       label: isSuperAdmin ? 'Total Branches' : 'Active Promos', 
       value: isSuperAdmin ? (data?.locations || 0) : (data?.promos || 0), 
-      trend: isSuperAdmin ? null : '+8%', 
+      trend: isSuperAdmin ? null : '+12%', 
       isUp: true, 
       icon: isSuperAdmin ? Store : ShoppingBag, 
       color: isSuperAdmin ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600',
       shadow: isSuperAdmin ? 'hover:shadow-amber-500/20' : 'hover:shadow-rose-500/20',
       path: isSuperAdmin ? '/monitor' : '/promo'
-    },
-    { 
-      label: 'Stock Status', 
-      value: (data?.inventoryCount || 0) > 100 ? 'Healthy' : 'Low Stock', 
-      trend: (data?.inventoryCount || 0) > 100 ? 'Normal' : 'Critical', 
-      isUp: (data?.inventoryCount || 0) > 100, 
-      icon: Package, 
-      color: (data?.inventoryCount || 0) > 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
-      shadow: (data?.inventoryCount || 0) > 100 ? 'hover:shadow-emerald-500/20' : 'hover:shadow-rose-500/20',
-      path: '/inventory'
     }
-  ].filter(card => isSuperAdmin ? card.label !== 'Stock Status' : true);
+  ];
 
   return (
     <div className="space-y-12 pb-12 w-full max-w-full overflow-x-hidden">
@@ -218,60 +208,6 @@ export default function OverviewPage() {
           </p>
         </div>
         <div className="flex items-end gap-6">
-            <Tooltip>
-              <TooltipTrigger render={<div className="px-6 py-4 bg-white rounded-[24px] border border-gray-100 shadow-sm flex flex-col cursor-help group hover:border-indigo-100 transition-colors mb-2" />}>
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-indigo-400">
-                  Network Health Score <Info className="w-3 h-3" />
-                </span>
-                <span className="text-lg font-black text-indigo-600">{data?.healthScore || 0}/100</span>
-              </TooltipTrigger>
-              <TooltipContent className="bg-[#0F172A] text-white border border-white/10 rounded-[24px] p-6 shadow-2xl min-w-[280px]">
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-1 border-b border-white/10 pb-3">
-                    <p className="text-xs font-black uppercase tracking-widest text-indigo-400">Score Breakdown</p>
-                    <p className="text-[10px] text-white/50 font-bold uppercase italic">Real-time performance metrics</p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                      <span className="text-white/60">Inventory Coverage</span>
-                      <span className="text-white">{data?.healthBreakdown?.inventory || 0}/30</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.inventory || 0)/30)*100}%` }} />
-                    </div>
-
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                      <span className="text-white/60">Sales Performance</span>
-                      <span className="text-white">{data?.healthBreakdown?.sales || 0}/30</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.sales || 0)/30)*100}%` }} />
-                    </div>
-
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                      <span className="text-white/60">AI Validation Coverage</span>
-                      <span className="text-white">{data?.healthBreakdown?.ai || 0}/20</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <div className="h-full bg-amber-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.ai || 0)/20)*100}%` }} />
-                    </div>
-
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                      <span className="text-white/60">Stock Health Alert</span>
-                      <span className="text-white">{data?.healthBreakdown?.lowStock || 0}/20</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <div className="h-full bg-rose-500 rounded-full" style={{ width: `${((data?.healthBreakdown?.lowStock || 0)/20)*100}%` }} />
-                    </div>
-                  </div>
-
-                  <p className="text-[9px] text-white/40 font-bold leading-relaxed pt-2 border-t border-white/10 italic">
-                    A weighted score based on real-time operational and financial health across the entire network.
-                  </p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
 
             <div className="flex flex-col items-end gap-4 min-h-[120px] justify-between ml-auto">
               {isSuperAdmin && <BranchSelector />}
@@ -299,10 +235,7 @@ export default function OverviewPage() {
         branchName={locationName}
       />
 
-      <div className={cn(
-        "grid gap-6",
-        isSuperAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-      )}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {statCards.map((stat, i) => {
           const isClickable = !!stat.path;
           const CardWrapper = isClickable ? (

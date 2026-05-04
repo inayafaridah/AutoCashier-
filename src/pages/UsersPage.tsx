@@ -101,7 +101,7 @@ export default function UsersPage() {
     }
 
     try {
-      const res = await fetchBackend('updateUser', editingUser, { id: editingUser.id });
+      const res = await fetchBackend('updateUser', editingUser);
       if (res.status === 'success') {
         toast.success('Identity updated successfully');
         setIsEditModalOpen(false);
@@ -117,7 +117,7 @@ export default function UsersPage() {
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     try {
-      const res = await fetchBackend('deleteUser', {}, { id: userToDelete.id });
+      const res = await fetchBackend('deleteUser', { id: userToDelete.id });
       if (res.status === 'success') {
         toast.success(`Identity for ${userToDelete.name} revoked`);
         setIsDeleteModalOpen(false);

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { AddProductForm, ProductFormData } from '@/components/AddProductForm';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
+import { fetchBackend } from '@/lib/api';
 
 export default function AddProductPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function AddProductPage() {
       uploadFormData.append('name', formData.name);
       uploadFormData.append('category', formData.category);
       uploadFormData.append('basePrice', formData.basePrice.toString());
+      uploadFormData.append('stock', formData.stock.toString());
       uploadFormData.append('description', formData.description);
 
       // Append images
@@ -38,26 +40,16 @@ export default function AddProductPage() {
       }
 
       // Send ke backend untuk YOLO validation
-      const response = await fetch('http://localhost:5000/api/products', {
-        method: 'POST',
-        body: uploadFormData,
-      });
+      const res = await fetchBackend('createProduct', uploadFormData);
 
-      let result;
-      try {
-        result = await response.json();
-      } catch (e) {
-        throw new Error(`Server returned status ${response.status} but no valid JSON.`);
-      }
-
-      if (response.ok && result.status === 'success') {
+      if (res.status === 'success') {
         toast.success('✅ Produk berhasil ditambahkan dengan validasi YOLO!');
         
         setTimeout(() => {
           navigate('/master-products');
         }, 1500);
       } else {
-        throw new Error(result.error || result.message || `Gagal menambah produk (Status ${response.status})`);
+        throw new Error(res.error || res.message || `Gagal menambah produk`);
       }
     } catch (err: any) {
       const errorMsg = err.message || 'Terjadi kesalahan saat menambah produk';
@@ -120,21 +112,120 @@ export default function AddProductPage() {
         <AddProductForm onSubmit={handleSubmit} loading={isLoading} />
 
         {isLoading && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md">
-            <div className="text-center space-y-4">
-              <div className="relative mx-auto h-20 w-20">
-                <div className="absolute inset-0 rounded-3xl border-4 border-indigo-100" />
-                <div className="absolute inset-0 animate-spin rounded-3xl border-4 border-indigo-600 border-t-transparent" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-indigo-600 animate-pulse" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-black text-gray-900">Processing Product</h3>
-                <p className="text-sm font-medium text-gray-500">Optimizing images and validating with YOLO v8...</p>
-              </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-indigo-950/40 via-purple-950/40 to-black/40 backdrop-blur-xl"
+          >
+            {/* Animated background orbs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <motion.div
+                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.2, 0.3] }}
+                transition={{ repeat: Infinity, duration: 4 }}
+                className="absolute top-1/4 left-1/4 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl"
+              />
+              <motion.div
+                animate={{ scale: [1.2, 1, 1.2], opacity: [0.2, 0.3, 0.2] }}
+                transition={{ repeat: Infinity, duration: 5, delay: 0.5 }}
+                className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl"
+              />
             </div>
-          </div>
+
+            {/* Main card */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+              className="relative text-center space-y-6 p-8 bg-gradient-to-br from-white/95 to-white/90 rounded-3xl shadow-2xl border border-white/60 backdrop-blur-md max-w-md"
+            >
+              {/* Animated loader circle */}
+              <div className="relative mx-auto h-24 w-24">
+                {/* Outer rotating ring */}
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+                  className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-600 border-r-indigo-400"
+                />
+
+                {/* Middle pulsing ring */}
+                <motion.div
+                  animate={{ scale: [0.8, 1.1, 0.8] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="absolute inset-2 rounded-full border-2 border-purple-500/40"
+                />
+
+                {/* Inner icon */}
+                <motion.div
+                  animate={{ rotate: -360 }}
+                  transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+                  className="absolute inset-0 flex items-center justify-center"
+                >
+                  <Sparkles className="h-10 w-10 text-indigo-600" />
+                </motion.div>
+              </div>
+
+              {/* Text content */}
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  Processing Product
+                </h3>
+                <p className="text-sm font-medium text-gray-600">
+                  Optimizing images and validating with YOLO v8...
+                </p>
+              </div>
+
+              {/* Progress steps */}
+              <div className="space-y-2 pt-2">
+                <motion.div
+                  animate={{ x: [0, 4, 0] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="flex items-center gap-2 text-xs text-gray-600"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                    className="h-2 w-2 rounded-full bg-indigo-500"
+                  />
+                  <span>Analyzing images</span>
+                </motion.div>
+
+                <motion.div
+                  animate={{ x: [0, 4, 0] }}
+                  transition={{ repeat: Infinity, duration: 2, delay: 0.3 }}
+                  className="flex items-center gap-2 text-xs text-gray-600"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.3 }}
+                    className="h-2 w-2 rounded-full bg-purple-500"
+                  />
+                  <span>Running AI validation</span>
+                </motion.div>
+
+                <motion.div
+                  animate={{ x: [0, 4, 0] }}
+                  transition={{ repeat: Infinity, duration: 2, delay: 0.6 }}
+                  className="flex items-center gap-2 text-xs text-gray-600"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.6 }}
+                    className="h-2 w-2 rounded-full bg-pink-500"
+                  />
+                  <span>Saving to catalog</span>
+                </motion.div>
+              </div>
+
+              {/* Subtle progress bar */}
+              <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-4">
+                <motion.div
+                  animate={{ x: ['0%', '100%'] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                  className="h-full w-1/3 bg-gradient-to-r from-indigo-500 via-purple-500 to-transparent rounded-full"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </div>
     </motion.div>

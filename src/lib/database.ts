@@ -4,16 +4,15 @@
  */
 
 import { supabase } from './supabase';
-import { getMasterCatalogFromSupabase } from './api';
-
 export async function initializeDatabase() {
   console.log('🔄 Initializing database connection...');
   
   try {
     // Test connection by querying master_catalog table
-    const { data, error, status } = await supabase
+    const { error } = await supabase
       .from('master_catalog')
-      .select('count()', { count: 'exact' });
+      .select('*')
+      .limit(1);
 
     if (error) {
       console.warn('⚠️ Database initialization warning:', error.message);
@@ -22,11 +21,10 @@ export async function initializeDatabase() {
     }
 
     console.log('✅ Database connection successful');
-    console.log('📊 Master catalog has', data?.length || 0, 'records');
 
     // Try to fetch and log sample data
-    const catalog = await getMasterCatalogFromSupabase();
-    console.log(`✅ Successfully loaded ${catalog.length} items from master_catalog`);
+    const { data: catalog } = await supabase.from('master_catalog').select('*').limit(5);
+    console.log(`✅ Successfully loaded ${(catalog || []).length} items from master_catalog`);
 
     return { connected: true, message: 'Database connected successfully' };
   } catch (error) {

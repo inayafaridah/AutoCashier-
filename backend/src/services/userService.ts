@@ -66,13 +66,22 @@ export async function createUser(userData: any) {
 export async function updateUser(userId: string, updates: any) {
   try {
     const db = supabaseAdmin || supabase;
+    
+    const payload: any = {};
+    if (updates.name) payload.full_name = updates.name;
+    if (updates.email) payload.email = updates.email;
+    if (updates.role) {
+      payload.role = updates.role === 'Super Admin' ? 'super_admin' : (updates.role === 'Branch Admin' ? 'branch_admin' : 'member');
+    }
+    
+    if (updates.password) {
+      const salt = await bcrypt.genSalt(10);
+      payload.password = await bcrypt.hash(updates.password, salt);
+    }
+
     const { error } = await db
       .from('users')
-      .update({
-        full_name: updates.name,
-        role: updates.role === 'Super Admin' ? 'super_admin' : (updates.role === 'Branch Admin' ? 'branch_admin' : 'member'),
-        email: updates.email
-      })
+      .update(payload)
       .eq('id', userId);
 
     if (error) throw error;

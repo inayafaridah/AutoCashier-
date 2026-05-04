@@ -47,18 +47,28 @@ export async function getOverviewData(params: {
     }
 
     // Current Revenue
-    const { data: currData } = await db
+    let currQuery = db
       .from('transactions')
       .select('total_amount')
       .gte('created_at', currentStart.toISOString());
+    
+    if (params.location_id && params.location_id !== 'ALL') {
+      currQuery = currQuery.eq('branch_id', params.location_id);
+    }
+    const { data: currData } = await currQuery;
     const currentRevenue = currData?.reduce((acc, t) => acc + Number(t.total_amount), 0) ?? 0;
 
     // Previous Revenue
-    const { data: prevData } = await db
+    let prevQuery = db
       .from('transactions')
       .select('total_amount')
       .lt('created_at', currentStart.toISOString())
       .gte('created_at', previousStart.toISOString());
+    
+    if (params.location_id && params.location_id !== 'ALL') {
+      prevQuery = prevQuery.eq('branch_id', params.location_id);
+    }
+    const { data: prevData } = await prevQuery;
     const previousRevenue = prevData?.reduce((acc, t) => acc + Number(t.total_amount), 0) ?? 0;
 
     // Calculate Growth Percentage
@@ -70,11 +80,19 @@ export async function getOverviewData(params: {
     }
 
     // ── 2. Total Sales (Transaction Count) ───────────────────────────
-    const { count: totalSales } = await db
-      .from('transactions')
-      .select('*', { count: 'exact', head: true });
+    let salesQuery = db.from('transactions').select('*', { count: 'exact', head: true });
+    if (params.location_id && params.location_id !== 'ALL') {
+      salesQuery = salesQuery.eq('branch_id', params.location_id);
+    }
+    const { count: totalSales } = await salesQuery;
 
     // ── 3. Products Stats (Catalog & Stock) ──────────────────────────
+    // Note: If location-specific, we should ideally check branch_inventory.
+    // But for now, if 'ALL', we use global products. 
+    // If specific, we still use products count but maybe we should filter by what's in branch_inventory.
+    // For simplicity, we'll keep product count global for now as "Catalog size", 
+    // but filter stock from products if possible (if products are per-branch).
+    // Actually, in this schema, 'products' table seems to be the master list.
     const { count: totalProducts } = await db
       .from('products')
       .select('*', { count: 'exact', head: true });

@@ -15,7 +15,7 @@ import {useLocation} from '@/context/LocationContext';
 import {cn} from '@/lib/utils';
 
 export default function AIAnalysisPage() {
-  const {locationName} = useLocation();
+  const {locationName, currentLocation} = useLocation();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [chatMessages, setChatMessages] = useState([
@@ -31,36 +31,27 @@ export default function AIAnalysisPage() {
     scrollToBottom();
   }, [chatMessages]);
 
-  const handleAutoAnalysis = () => {
+  const handleAutoAnalysis = async () => {
     setIsAnalyzing(true);
-    setTimeout(() => {
+    try {
+      const res = await fetchBackend('aiAutoAnalysis', { location_id: currentLocation });
+      if (res.status === 'success') {
+        setChatMessages(prev => [...prev, { role: 'ai', content: res.data }]);
+        toast.success("Branch Analysis Complete", {
+          description: "Intelligent report injected into local neural link.",
+          duration: 4000,
+        });
+      } else {
+        throw new Error(res.message || 'Analysis failed');
+      }
+    } catch (err: any) {
+      toast.error("Analysis Failed", { description: err.message });
+    } finally {
       setIsAnalyzing(false);
-      
-      const reportContent = `### **BRANCH STRATEGIC ANALYSIS: ${locationName.toUpperCase()}**
-
-**Executive Summary:**
-Local operations at **${locationName}** are performing at **88.4% efficiency**. Predictive models suggest a high-impact window for revenue optimization in the next 72 hours.
-
-**Anomalies Detected:**
-* **Stock Variance:** *Arabica Signature* stock levels are low relative to projected weekend demand.
-* **Customer Pulse:** Spike in morning traffic detected (07:00 - 09:00), leading to suboptimal wait times.
-* **Waste Vector:** Recent pastry disposal rates are 12% higher than the network average.
-
-**Actionable Advice:**
-1. **Restock Priority:** Immediately increase *Arabica Signature* inventory by 20 units.
-2. **Shift Optimization:** Deploy an additional barista for the morning peak (07:00-09:00) to capture 15% more throughput.
-3. **Dynamic Bundling:** Launch a "Morning Classic" promo to reduce pastry waste and boost basket size.`;
-
-      setChatMessages(prev => [...prev, { role: 'ai', content: reportContent }]);
-      
-      toast.success("Branch Analysis Complete", {
-        description: "Intelligent report injected into local neural link.",
-        duration: 4000,
-      });
-    }, 2500);
+    }
   };
 
-  const handleSendMessage = (e?: FormEvent) => {
+  const handleSendMessage = async (e?: FormEvent) => {
     e?.preventDefault();
     if (!userInput.trim()) return;
 
@@ -69,18 +60,24 @@ Local operations at **${locationName}** are performing at **88.4% efficiency**. 
     setChatMessages(newMessages);
     setUserInput('');
 
-    // Simulate AI Response
-    setTimeout(() => {
+    try {
+      const res = await fetchBackend('aiInsight', { 
+        prompt: currentInput, 
+        contextType: 'inventory',
+        location_id: currentLocation 
+      });
+      
+      if (res.status === 'success') {
+        setChatMessages(prev => [...prev, { role: 'ai', content: res.data }]);
+      } else {
+        throw new Error(res.message || 'Insight generation failed');
+      }
+    } catch (err: any) {
       setChatMessages(prev => [...prev, { 
         role: 'ai', 
-        content: `I've analyzed the local branch data regarding **${currentInput.toLowerCase()}**. 
-
-Based on my analysis of ${locationName}:
-* Current trends support a **12% increase** in potential capture.
-* Competitor activity in the area suggests maintaining current pricing.
-* Efficiency can be boosted by targeted staff reallocation.` 
+        content: `**Neural System Error:** ${err.message}. Please check API link status.` 
       }]);
-    }, 1000);
+    }
   };
 
   return (

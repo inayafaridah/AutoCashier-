@@ -28,13 +28,16 @@ import {
 } from 'recharts';
 import {motion, AnimatePresence} from 'motion/react';
 import {toast} from 'sonner';
+import {useLocation} from '@/context/LocationContext';
+import {fetchBackend} from '@/lib/api';
 import {cn} from '@/lib/utils';
 
 export default function AIInsightsPage() {
+  const {locationName, allBranches} = useLocation();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [chatMessages, setChatMessages] = useState([
-    { role: 'ai', content: 'Greeting, Captain. System data suggests a high probability of optimization in the West Network. How can I assist your analysis today?' }
+    { role: 'ai', content: `Greeting, Captain. Neural link to ${locationName} is active. System suggests a high probability of optimization in the current operational group. How can I assist your analysis today?` }
   ]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,36 +49,28 @@ export default function AIInsightsPage() {
     scrollToBottom();
   }, [chatMessages]);
 
-  const handleAutoAnalysis = () => {
+  const handleAutoAnalysis = async () => {
     setIsAnalyzing(true);
-    setTimeout(() => {
+    try {
+      const res = await fetchBackend('aiAutoAnalysis', { contextType: 'overview' });
+      
+      if (res.status === 'success') {
+        setChatMessages(prev => [...prev, { role: 'ai', content: res.data }]);
+        toast.success("Auto-Analysis Complete", {
+          description: "Intelligent report injected into neural link.",
+          duration: 4000,
+        });
+      } else {
+        throw new Error(res.message || 'Analysis failed');
+      }
+    } catch (err: any) {
+      toast.error("Analysis Failed", { description: err.message });
+    } finally {
       setIsAnalyzing(false);
-      
-      const reportContent = `### **STRATEGIC NETWORK ANALYSIS**
-
-**Executive Summary:**
-Overall business health is categorized as **Optimum (94.2%)**. However, neural cross-referencing has identified significant localized efficiency leaks in the West Coast clusters.
-
-**Anomalies Detected:**
-* **Inventory Imbalance:** Surplus detected at *Pusat Central* ($14.2k valuation). 
-* **Demand Surge:** Jakarta nodes are experiencing an unexpected **22% WoW spike** in *Arabica Signature* categories.
-* **Latency Gap:** Bandung industrial nodes reporting suboptimal resource allocation.
-
-**Actionable Advice:**
-1. **Redistribute Assets:** Verify and initiate inventory transfer from Pusat to Jakarta West to fulfill current demand spikes.
-2. **Dynamic Scaling:** Adjust operational buffers in Bandung Core to account for the current 4.8x optimization delta.
-3. **Promo Activation:** Deploy targeted 10% vouchers for 'Classic Blends' in under-performing Bandung nodes to balance revenue distribution.`;
-
-      setChatMessages(prev => [...prev, { role: 'ai', content: reportContent }]);
-      
-      toast.success("Auto-Analysis Complete", {
-        description: "Intelligent report injected into neural link.",
-        duration: 4000,
-      });
-    }, 2500);
+    }
   };
 
-  const handleSendMessage = (e?: FormEvent) => {
+  const handleSendMessage = async (e?: FormEvent) => {
     e?.preventDefault();
     if (!userInput.trim()) return;
 
@@ -84,18 +79,20 @@ Overall business health is categorized as **Optimum (94.2%)**. However, neural c
     setChatMessages(newMessages);
     setUserInput('');
 
-    // Simulate AI Response
-    setTimeout(() => {
+    try {
+      const res = await fetchBackend('aiInsight', { prompt: currentInput, contextType: 'overview' });
+      
+      if (res.status === 'success') {
+        setChatMessages(prev => [...prev, { role: 'ai', content: res.data }]);
+      } else {
+        throw new Error(res.message || 'Insight generation failed');
+      }
+    } catch (err: any) {
       setChatMessages(prev => [...prev, { 
         role: 'ai', 
-        content: `I've analyzed the **${currentInput.toLowerCase()}** data. 
-
-**Neural patterns** indicate a **14% efficiency gap** in low-latency branch nodes. I recommend the following:
-* Deploy dynamic buffer allocation.
-* Adjust node synchronization intervals.
-* Perform a direct link verification.` 
+        content: `**Neural System Error:** ${err.message}. Please check API link status.` 
       }]);
-    }, 1000);
+    }
   };
 
   return (
@@ -201,7 +198,7 @@ Overall business health is categorized as **Optimum (94.2%)**. However, neural c
                 <div>
                   <h5 className="text-xl font-black tracking-tighter text-gray-900 leading-tight">Optimization Report</h5>
                   <p className="text-xs text-gray-500 font-medium mt-3 leading-relaxed">
-                    System suggests high-impact inventory shifting due to weather-correlated demand spikes. Apply to gain 14% network efficiency.
+                    System suggests high-impact inventory shifting for {locationName} due to demand spikes. Apply to gain 14% network efficiency.
                   </p>
                 </div>
                 <Button className="w-full bg-indigo-600/5 hover:bg-indigo-600/10 text-indigo-600 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] border-none transition-all">
@@ -214,16 +211,17 @@ Overall business health is categorized as **Optimum (94.2%)**. However, neural c
           <Card className="rounded-[40px] border-none shadow-2xl shadow-indigo-600/5 bg-white p-10">
             <h4 className="text-sm font-black uppercase tracking-widest text-gray-400 mb-6">Active Clusters</h4>
             <div className="space-y-4">
-              {[
-                { name: 'Jakarta Nodes', status: 'Optimal', pulse: 'bg-emerald-500' },
-                { name: 'West Network', status: 'Syncing', pulse: 'bg-amber-500' },
-                { name: 'Bandung Core', status: 'Peak Load', pulse: 'bg-indigo-500' },
-              ].map(cluster => (
-                <div key={cluster.name} className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-900">{cluster.name}</span>
+              {allBranches.filter(b => b.id !== 'ALL').map((branch, i) => (
+                <div key={branch.id} className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-900">{branch.name}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{cluster.status}</span>
-                    <div className={cn("w-2 h-2 rounded-full animate-pulse", cluster.pulse)} />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                      {i % 3 === 0 ? 'Optimal' : i % 3 === 1 ? 'Syncing' : 'Peak Load'}
+                    </span>
+                    <div className={cn(
+                      "w-2 h-2 rounded-full animate-pulse", 
+                      i % 3 === 0 ? 'bg-emerald-500' : i % 3 === 1 ? 'bg-amber-500' : 'bg-indigo-500'
+                    )} />
                   </div>
                 </div>
               ))}
