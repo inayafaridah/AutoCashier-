@@ -51,7 +51,7 @@ const SUPER_ADMIN_NAV = [
   {path: '/users', label: 'User Management', icon: Users},
   {path: '/broadcast', label: 'Broadcast', icon: Megaphone},
   {path: '/insights', label: 'AI Insights', icon: BrainCircuit},
-  {path: '/live-detect', label: 'Live Detection', icon: ScanSearch},
+  {path: '/live-detect', label: 'Product Scanner', icon: ScanSearch},
 ];
 
 const BRANCH_ADMIN_NAV = [
@@ -60,7 +60,7 @@ const BRANCH_ADMIN_NAV = [
   {path: '/monitor', label: 'Monitor', icon: MonitorCheck},
   {path: '/promo', label: 'Promo', icon: Tag},
   {path: '/analysis', label: 'AI Insights', icon: BrainCircuit},
-  {path: '/live-detect', label: 'Live Detection', icon: ScanSearch},
+  {path: '/live-detect', label: 'Product Scanner', icon: ScanSearch},
 ];
 
 export default function DashboardLayout({children}: {children: ReactNode}) {
