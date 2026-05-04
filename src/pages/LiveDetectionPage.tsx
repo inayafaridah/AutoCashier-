@@ -111,7 +111,11 @@ export default function LiveDetectionPage() {
           productsFetchedAtRef.current = Date.now();
           return data.data;
         }
-      } catch (_) {}
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('Failed to refresh product cache', err);
+        }
+      }
       return productsCacheRef.current;
     })();
 
@@ -134,13 +138,20 @@ export default function LiveDetectionPage() {
         return;
       }
 
+      const matchesNormalized = (candidate: string) =>
+        candidate === normalizedLabel || candidate.split(' ').includes(normalizedLabel);
+
       const found = products.find((p) => {
         const aiLabel = p.ai_label ? normalizeLabel(p.ai_label) : '';
         const name = p.name ? normalizeLabel(p.name) : '';
-        return (aiLabel && aiLabel === normalizedLabel) || (name && name.includes(normalizedLabel));
+        return (aiLabel && matchesNormalized(aiLabel)) || (name && matchesNormalized(name));
       });
       setMatchedProduct(found ?? null);
-    } catch (_) {}
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('Failed to match product label', err);
+      }
+    }
   }, [ensureProductsCache]);
 
   // ------ Crop frame to detection box, then send to YOLO ------
@@ -162,8 +173,10 @@ export default function LiveDetectionPage() {
       const bx = Math.floor((vw - boxSize) / 2);
       const by = Math.floor((vh - boxSize) / 2);
 
-      const canvas = captureCanvasRef.current ?? document.createElement('canvas');
-      captureCanvasRef.current = canvas;
+      if (!captureCanvasRef.current) {
+        captureCanvasRef.current = document.createElement('canvas');
+      }
+      const canvas = captureCanvasRef.current;
       canvas.width = boxSize;
       canvas.height = boxSize;
 
@@ -197,7 +210,10 @@ export default function LiveDetectionPage() {
         setFps(Math.round(1000 / elapsed));
         lastScanRef.current = Date.now();
       }
-    } catch (_) {
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('Live detection failed', err);
+      }
     } finally {
       detectingRef.current = false;
       setDetecting(false);
