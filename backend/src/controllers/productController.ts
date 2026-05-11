@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import * as productService from '../services/productService';
-import { validateWithYolo } from '../services/yoloService';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function listProducts(req: Request, res: Response) {
@@ -38,41 +37,8 @@ export async function createProduct(req: Request, res: Response) {
       return res.status(400).json({ status: 'error', error: 'Nama dan harga produk wajib diisi.' });
     }
 
-    // 1. Prepare image paths for YOLO validation
-    const imagePaths: { angle: string; path: string }[] = [];
-    if (files?.imageLeft?.[0])  imagePaths.push({ angle: 'left',  path: files.imageLeft[0].path });
-    if (files?.imageRight?.[0]) imagePaths.push({ angle: 'right', path: files.imageRight[0].path });
-    if (files?.imageFront?.[0]) imagePaths.push({ angle: 'front', path: files.imageFront[0].path });
-    if (files?.imageBack?.[0])  imagePaths.push({ angle: 'back',  path: files.imageBack[0].path });
-
-    if (imagePaths.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Wajib mengunggah minimal satu foto produk untuk identifikasi AI.'
-      });
-    }
-
-    // 2. Run YOLO Validation
-    const yoloResult = await validateWithYolo(imagePaths);
-    if (!yoloResult.ok) {
-      return res.status(500).json({ status: 'error', error: 'Gagal menjalankan validasi YOLO: ' + yoloResult.error });
-    }
-
-    // Filter images where detection actually succeeded
-    const detectedImages = yoloResult.results.filter(r => r.detected);
-    if (detectedImages.length === 0) {
-      return res.status(422).json({
-        status: 'error',
-        error: `AI gagal mengenali produk pada foto yang diunggah. Pastikan produk terlihat jelas dan bukan objek terlarang (seperti wajah manusia).`,
-        details: yoloResult.results
-      });
-    }
-
-    // 3. Get AI label from YOLO (highest confidence result from SUCCESSFUL detections)
-    const bestDetection = detectedImages.reduce((best, current) =>
-      (current.confidence > (best?.confidence ?? 0)) ? current : best
-    );
-    const aiLabel = bestDetection?.class ?? null;
+    // AI Labeling disabled as per user request (Live Detection removed)
+    const aiLabel = null;
 
     // 4. Front image as main image_url
     const frontFile = files?.imageFront?.[0];
@@ -129,14 +95,15 @@ export async function createProduct(req: Request, res: Response) {
     // 8. Initialize in all branches (NEW: Connect to branches)
     await productService.initializeProductInAllBranches(createdProduct.id, Number(basePrice));
 
+    // 9. Sync YOLO-World classes (non-blocking)
+    const yoloUrl = process.env.YOLO_WORLD_URL || 'http://localhost:8765';
+    fetch(`${yoloUrl}/sync-supabase`, { method: 'POST' }).catch(() => {
+      console.log('[createProduct] ⚠️  YOLO-World sync skipped (service offline)');
+    });
+
     return res.status(201).json({
       status: 'success',
-      data: createdProduct,
-      yolo: {
-        message: 'Validasi YOLO berhasil!',
-        ai_label: aiLabel,
-        details: yoloResult.results,
-      }
+      data: createdProduct
     });
   } catch (err: any) {
     console.error('[createProduct] Unexpected Error:', err);

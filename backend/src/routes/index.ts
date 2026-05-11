@@ -3,7 +3,7 @@ import healthController from '../controllers/healthController';
 import authRoutes from './auth';
 import productsRoutes from './products';
 import debugRoutes from './debug';
-import detectionRoutes from './detection';
+
 import overviewRoutes from './overview';
 import promoRoutes from './promos';
 import * as userController from '../controllers/userController';
@@ -11,6 +11,7 @@ import * as branchInventoryController from '../controllers/branchInventoryContro
 import * as broadcastController from '../controllers/broadcastController';
 import * as branchController from '../controllers/branchController';
 import * as transactionController from '../controllers/transactionController';
+import * as detectController from '../controllers/detectController';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.use('/products', productsRoutes);
 
 router.use('/debug', debugRoutes);
 
-router.use('/detect', detectionRoutes);
+
 
 router.use('/overview', overviewRoutes);
 router.use('/promos', promoRoutes);
@@ -48,5 +49,12 @@ router.delete('/branch-inventory/:id', branchInventoryController.deleteInventory
 // Transactions & Settings
 router.post('/checkout', transactionController.checkout);
 router.get('/store-settings', transactionController.getStoreSettings);
+
+// AI Detection (YOLO-World + DINOv2 + Grounding DINO)
+router.post('/detect', detectController.detectProducts);
+router.post('/detect/sync-classes', detectController.syncClasses);
+router.get('/detect/status', detectController.getDetectionStatus);
+router.post('/detect/register-product', detectController.registerProduct);
+router.get('/detect/registered-products', detectController.getRegisteredProducts);
 
 export default router;

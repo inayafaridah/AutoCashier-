@@ -9,12 +9,8 @@ const options: swaggerJsdoc.Options = {
       description: `
 ## AutoCashier Backend API
 
-REST API untuk sistem kasir otomatis berbasis AI dengan validasi produk menggunakan **YOLOv8**.
-
-### Fitur Utama
 - 🔐 **Autentikasi** JWT-based login
-- 📦 **Master Produk** CRUD dengan validasi foto YOLO
-- 🔍 **Live Detection** Deteksi produk real-time dari kamera
+- 📦 **Master Produk** CRUD produk
 - 🗄️ **Database** Supabase PostgreSQL
 
 ### Base URL
@@ -99,26 +95,6 @@ REST API untuk sistem kasir otomatis berbasis AI dengan validasi produk mengguna
             },
           },
         },
-        DetectionResult: {
-          type: 'object',
-          properties: {
-            status: { type: 'string', example: 'success' },
-            detected: { type: 'boolean', example: true },
-            confidence: { type: 'number', format: 'float', example: 0.87 },
-            label: { type: 'string', nullable: true, example: 'bottle' },
-            all_detections: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  class: { type: 'string', example: 'bottle' },
-                  confidence: { type: 'number', example: 0.87 },
-                },
-              },
-            },
-            simulation: { type: 'boolean', example: false, description: 'true jika YOLO berjalan dalam mode simulasi' },
-          },
-        },
         SuccessResponse: {
           type: 'object',
           properties: {
@@ -139,8 +115,7 @@ REST API untuk sistem kasir otomatis berbasis AI dengan validasi produk mengguna
     tags: [
       { name: 'Health', description: '🏥 Status server' },
       { name: 'Auth', description: '🔐 Autentikasi pengguna' },
-      { name: 'Products', description: '📦 Master data produk dengan validasi YOLO' },
-      { name: 'Detection', description: '🔍 Deteksi produk real-time menggunakan YOLOv8' },
+      { name: 'Products', description: '📦 Master data produk' },
     ],
     paths: {
       '/health': {
@@ -382,84 +357,6 @@ Menambahkan produk baru ke database.
           responses: {
             200: { description: 'Produk berhasil dihapus' },
             500: { description: 'Gagal hapus produk' },
-          },
-        },
-      },
-      '/detect': {
-        post: {
-          tags: ['Detection'],
-          summary: 'Deteksi objek pada gambar menggunakan YOLOv8',
-          description: `
-Menganalisis satu gambar menggunakan model **YOLOv8n** dan mengembalikan semua objek yang terdeteksi.
-
-**Cara kerja:**
-1. Upload satu gambar
-2. Backend menjalankan Python script dengan \`ultralytics\`
-3. Mengembalikan label, confidence, dan semua deteksi
-
-**Field yang dikembalikan:**
-- \`detected\`: apakah ada objek yang terdeteksi
-- \`confidence\`: keyakinan tertinggi (0.0 – 1.0)  
-- \`label\`: nama kelas objek utama (bottle, person, cup, dll)
-- \`all_detections\`: semua objek yang terdeteksi dalam gambar
-- \`simulation\`: \`true\` jika YOLOv8 tidak tersedia (mode simulasi)
-          `,
-          requestBody: {
-            required: true,
-            content: {
-              'multipart/form-data': {
-                schema: {
-                  type: 'object',
-                  required: ['image'],
-                  properties: {
-                    image: {
-                      type: 'string',
-                      format: 'binary',
-                      description: 'Gambar produk (JPG/PNG/WebP, max 5MB)',
-                    },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            200: {
-              description: 'Deteksi berhasil dijalankan',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/DetectionResult' },
-                  examples: {
-                    detected: {
-                      summary: 'Produk terdeteksi',
-                      value: {
-                        status: 'success',
-                        detected: true,
-                        confidence: 0.87,
-                        label: 'bottle',
-                        all_detections: [
-                          { class: 'bottle', confidence: 0.87 },
-                          { class: 'person', confidence: 0.45 },
-                        ],
-                        simulation: false,
-                      },
-                    },
-                    notDetected: {
-                      summary: 'Tidak ada objek',
-                      value: {
-                        status: 'success',
-                        detected: false,
-                        confidence: 0,
-                        label: null,
-                        all_detections: [],
-                        simulation: false,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            400: { description: 'Tidak ada gambar yang diunggah' },
-            500: { description: 'Gagal menjalankan YOLO' },
           },
         },
       },

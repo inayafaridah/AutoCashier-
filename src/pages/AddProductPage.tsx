@@ -52,7 +52,7 @@ export default function AddProductPage() {
       }
 
       if (response.ok && result.status === 'success') {
-        toast.success('✅ Produk berhasil ditambahkan dengan validasi YOLO!');
+        toast.success('✅ Produk berhasil ditambahkan!');
         
         setTimeout(() => {
           navigate('/master-products');
@@ -89,7 +89,7 @@ export default function AddProductPage() {
               </div>
               <h1 className="text-2xl font-black tracking-tight text-gray-900">New Product Entry</h1>
             </div>
-            <p className="text-sm font-medium text-gray-500">Capture visuals and input catalog details in one flow.</p>
+            <p className="text-sm font-medium text-gray-500">Input catalog details and upload product photos.</p>
           </div>
           
           <Button
@@ -137,18 +137,11 @@ export default function AddProductPage() {
               <div className="relative mb-12">
                 <div className="absolute inset-0 bg-indigo-500/30 rounded-[40px] blur-2xl animate-pulse" />
                 <div className="relative w-32 h-32 bg-white rounded-[40px] shadow-2xl flex items-center justify-center overflow-hidden border border-white/50">
-                  {/* Scanning Line Animation */}
-                  <motion.div 
-                    animate={{ top: ['0%', '100%', '0%'] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                    className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent z-10 shadow-[0_0_15px_rgba(99,102,241,0.8)]"
-                  />
-                  <Sparkles className="h-12 w-12 text-indigo-600 relative z-0" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <Sparkles className="h-12 w-12 text-indigo-600/20 relative z-0" />
                 </div>
-                
-                {/* Orbital Rings */}
-                <div className="absolute -inset-4 border border-indigo-500/20 rounded-[48px] animate-[spin_10s_linear_infinite]" />
-                <div className="absolute -inset-8 border border-purple-500/10 rounded-[56px] animate-[spin_15s_linear_infinite_reverse]" />
               </div>
 
               {/* Progress Text */}
@@ -158,27 +151,18 @@ export default function AddProductPage() {
                   animate={{ y: 0, opacity: 1 }}
                   className="text-3xl font-black text-white tracking-tight"
                 >
-                  Neural Processing
+                  Saving Product
                 </motion.h3>
                 <div className="flex flex-col gap-2">
-                  <p className="text-indigo-100/60 font-medium tracking-wide text-sm uppercase">YOLO v8 Vision Core Active</p>
-                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden border border-white/5">
-                    <motion.div 
-                      initial={{ width: "0%" }}
-                      animate={{ width: "100%" }}
-                      transition={{ duration: 15, ease: "linear" }}
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                    />
-                  </div>
+                  <p className="text-indigo-100/60 font-medium tracking-wide text-sm uppercase">Processing Catalog Entry</p>
                 </div>
               </div>
 
               {/* Step Indicators */}
               <div className="w-full space-y-3 bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
                 {[
-                  { label: "Optimizing Perspectives", status: "complete" },
-                  { label: "YOLO Object Detection", status: "active" },
-                  { label: "Synthesizing AI Labels", status: "pending" },
+                  { label: "Uploading Images", status: "complete" },
+                  { label: "Saving to Catalog", status: "active" },
                   { label: "Initializing Branch Sync", status: "pending" }
                 ].map((step, idx) => (
                   <div key={idx} className="flex items-center gap-4 text-left">

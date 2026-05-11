@@ -90,27 +90,44 @@ export async function fetchBackend(action: string, data: any = {}) {
 
       case 'getInventory': {
         const targetLoc = data.location_id || 'ALL';
-        const endpoint = targetLoc === 'ALL' 
-          ? `${BACKEND_URL}/api/branch-inventory`
-          : `${BACKEND_URL}/api/branch-inventory/${targetLoc}`;
-        
-        const response = await fetch(endpoint);
-        const json = await response.json();
-        
-        // If it's ALL, it returns { branches: [], summary: {} }. 
-        // But InventoryPage expects an array of items.
-        // If it's a specific ID, it returns the items array.
-        
+
         if (targetLoc === 'ALL') {
-          // Flatten all items from all branches if needed, or just return the summary list?
-          // InventoryPage expects an array of items.
-          // Let's assume the backend should provide a way to get ALL items.
-          // For now, if ALL, we fetch from /api/branch-inventory which gives summaries.
-          // This might be a mismatch in expectations.
-          return json; 
+          // Step 1: get list of branches (summary only)
+          const summaryRes = await fetch(`${BACKEND_URL}/api/branch-inventory`);
+          const summaryJson = await summaryRes.json();
+          const branches: any[] = summaryJson?.data?.branches ?? summaryJson?.data ?? [];
+
+          if (!Array.isArray(branches) || branches.length === 0) {
+            return { status: 'success', data: [] };
+          }
+
+          // Step 2: fetch items from each branch in parallel, then flatten
+          const perBranchResults = await Promise.all(
+            branches.map(async (branch: any) => {
+              try {
+                const r = await fetch(`${BACKEND_URL}/api/branch-inventory/${branch.id}`);
+                const j = await r.json();
+                const items: any[] = Array.isArray(j?.data) ? j.data : [];
+                return items.map((item: any) => ({
+                  ...item,
+                  branchName: branch.name ?? '',
+                  location_id: branch.id ?? '',
+                }));
+              } catch {
+                return [];
+              }
+            })
+          );
+
+          const allItems = perBranchResults.flat();
+          return { status: 'success', data: allItems };
         }
-        
-        return json;
+
+        // Specific branch
+        const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${targetLoc}`);
+        const json = await response.json();
+        const items = Array.isArray(json?.data) ? json.data : [];
+        return { status: 'success', data: items };
       }
 
       case 'addInventory': {

@@ -594,7 +594,7 @@ export default function InventoryPage() {
                                    {item.stock} Units
                                  </span>
                               </td>
-                              <td className="py-5 font-mono font-bold text-indigo-600">Rp {item.price.toLocaleString()}</td>
+                              <td className="py-5 font-mono font-bold text-indigo-600">Rp {(item.price ?? 0).toLocaleString()}</td>
                               <td className="py-5">
                                  <Badge 
                                    className={cn(

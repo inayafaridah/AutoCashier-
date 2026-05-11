@@ -36,7 +36,7 @@ app.use(cors({
 		callback(null, true);
 	},
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Serve uploaded product images — allow cross-origin so frontend (port 3000) can load from backend (port 5000)
 app.use('/uploads', (_req, res, next) => {
