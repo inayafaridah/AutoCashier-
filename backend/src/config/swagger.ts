@@ -225,15 +225,13 @@ const options: swaggerJsdoc.Options = {
         },
         post: {
           tags: ['Products'],
-          summary: 'Tambah produk baru dengan validasi YOLO',
+          summary: 'Tambah produk baru',
           description: `
 Menambahkan produk baru ke database.
 
-**Proses validasi:**
+**Proses pendaftaran:**
 1. Upload 3 foto produk (kiri, kanan, depan)
-2. Foto divalidasi menggunakan model **YOLOv8n**
-3. Jika deteksi gagal → HTTP 422
-4. Jika berhasil → produk disimpan ke Supabase dengan SKU auto-generated
+2. Produk disimpan ke Supabase dengan SKU auto-generated
 
 **Catatan:** Gunakan \`Content-Type: multipart/form-data\`
           `,
@@ -255,34 +253,13 @@ Menambahkan produk baru ke database.
                     properties: {
                       status: { type: 'string', example: 'success' },
                       data: { $ref: '#/components/schemas/Product' },
-                      yolo: {
-                        type: 'object',
-                        properties: {
-                          message: { type: 'string', example: 'Validasi YOLO berhasil!' },
-                          ai_label: { type: 'string', example: 'bottle' },
-                        },
-                      },
                     },
                   },
                 },
               },
             },
             400: { description: 'Foto tidak lengkap atau field wajib tidak diisi' },
-            422: {
-              description: 'Validasi YOLO gagal — produk tidak terdeteksi dalam foto',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'error' },
-                      error: { type: 'string', example: 'Deteksi produk gagal pada 2 foto' },
-                      details: { type: 'array', items: { type: 'object' } },
-                    },
-                  },
-                },
-              },
-            },
+
             500: { description: 'Kesalahan server internal' },
           },
         },

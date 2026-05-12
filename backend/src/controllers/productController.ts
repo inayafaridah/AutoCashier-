@@ -30,30 +30,27 @@ export async function getProduct(req: Request, res: Response) {
 
 export async function createProduct(req: Request, res: Response) {
   try {
-    const { name, category, basePrice, stock } = req.body;
+    const { sku, name, category, price, ai_label, stock } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-    if (!name || !basePrice) {
+    if (!name || !price) {
       return res.status(400).json({ status: 'error', error: 'Nama dan harga produk wajib diisi.' });
     }
-
-    // AI Labeling disabled as per user request (Live Detection removed)
-    const aiLabel = null;
 
     // 4. Front image as main image_url
     const frontFile = files?.imageFront?.[0];
     const imageUrl = frontFile ? `/uploads/${frontFile.filename}` : null;
 
-    // 5. Generate unique SKU
-    const sku = `PROD-${name.substring(0, 3).toUpperCase()}-${uuidv4().substring(0, 8).toUpperCase()}`;
+    // 5. Generate unique SKU if not provided
+    const finalSku = sku || `PROD-${name.substring(0, 3).toUpperCase()}-${uuidv4().substring(0, 8).toUpperCase()}`;
 
     // 6. Save product to Supabase
     const result = await productService.createProduct({
-      sku,
+      sku: finalSku,
       name,
-      price: Number(basePrice),
+      price: Number(price),
       category: category || null,
-      ai_label: aiLabel,
+      ai_label: ai_label || null,
       image_url: imageUrl,
       stock: stock !== undefined ? Number(stock) : 0,
     });
@@ -93,13 +90,8 @@ export async function createProduct(req: Request, res: Response) {
     console.log(`[createProduct] ✅ ${imageEntries.length} foto berhasil didaftarkan untuk produk: ${createdProduct.name}`);
     
     // 8. Initialize in all branches (NEW: Connect to branches)
-    await productService.initializeProductInAllBranches(createdProduct.id, Number(basePrice));
+    await productService.initializeProductInAllBranches(createdProduct.id, Number(price));
 
-    // 9. Sync YOLO-World classes (non-blocking)
-    const yoloUrl = process.env.YOLO_WORLD_URL || 'http://localhost:8765';
-    fetch(`${yoloUrl}/sync-supabase`, { method: 'POST' }).catch(() => {
-      console.log('[createProduct] ⚠️  YOLO-World sync skipped (service offline)');
-    });
 
     return res.status(201).json({
       status: 'success',

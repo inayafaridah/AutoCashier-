@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import OverviewPage from './pages/OverviewPage';
 import InventoryPage from './pages/InventoryPage';
+import AddInventoryPage from './pages/AddInventoryPage';
 import PromoPage from './pages/PromoPage';
 import UsersPage from './pages/UsersPage';
 import BroadcastPage from './pages/BroadcastPage';
@@ -23,8 +24,6 @@ import AddProductPage from './pages/AddProductPage';
 import BranchInventoryPage from './pages/BranchInventoryPage';
 import BroadcastInboxPage from './pages/BroadcastInboxPage';
 import ProfilePage from './pages/ProfilePage';
-import CameraScannerPage from './pages/CameraScannerPage';
-
 import {TooltipProvider} from './components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
@@ -61,6 +60,7 @@ function AppRoutes() {
       <Route path="/monitor" element={<ProtectedLayout><BranchInventoryPage /></ProtectedLayout>} />
 
       <Route path="/inventory" element={<ProtectedLayout><InventoryPage /></ProtectedLayout>} />
+      <Route path="/inventory/add" element={<ProtectedLayout><AddInventoryPage /></ProtectedLayout>} />
 
       <Route path="/users" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
 
@@ -74,9 +74,6 @@ function AppRoutes() {
 
       <Route path="/analysis" element={<ProtectedLayout><AIAnalysisPage /></ProtectedLayout>} />
       <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-      <Route path="/scanner" element={<AuthGuard><CameraScannerPage /></AuthGuard>} />
-
-
       <Route path="/settings" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
 
       <Route path="/" element={<Navigate to="/overview" replace />} />

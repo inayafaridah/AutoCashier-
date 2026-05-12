@@ -173,18 +173,20 @@ export async function initializeProductInAllBranches(productId: string, initialP
     if (bErr) throw bErr;
     if (!branches || branches.length === 0) return { ok: true, message: 'No branches to initialize' };
 
-    // 2. Prepare inventory rows
+    // 2. Prepare inventory rows (price is stored in products table, not branch_inventory)
     const inventoryRows = branches.map(branch => ({
       branch_id: branch.id,
       product_id: productId,
       stock: 0,
-      price: initialPrice,
       last_updated: new Date().toISOString()
     }));
 
     // 3. Bulk insert to branch_inventory
     const { error: iErr } = await client.from('branch_inventory').insert(inventoryRows);
-    if (iErr) throw iErr;
+    if (iErr) {
+      console.error(`[productService] ❌ branch_inventory insert error:`, JSON.stringify(iErr, null, 2));
+      throw iErr;
+    }
 
     console.log(`[productService] 🚀 Initialized product ${productId} in ${branches.length} branches.`);
     return { ok: true };

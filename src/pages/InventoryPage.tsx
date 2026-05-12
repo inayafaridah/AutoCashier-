@@ -1,4 +1,5 @@
 import {useState, useEffect} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {Card, CardContent, CardHeader} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -26,8 +27,9 @@ import {
 } from 'lucide-react';
 import {useLocation} from '@/context/LocationContext';
 import {useAuth} from '@/context/AuthContext';
-import {fetchBackend, MOCK_LOCATIONS} from '@/lib/api';
+import {fetchBackend, MOCK_LOCATIONS, BACKEND_URL} from '@/lib/api';
 import {cn} from '@/lib/utils';
+
 import {Badge} from '@/components/ui/badge';
 import {motion} from 'motion/react';
 import {Tabs, TabsList, TabsTrigger} from '@/components/ui/tabs';
@@ -64,13 +66,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from "sonner";
 
 export default function InventoryPage() {
+  const navigate = useNavigate();
   const {currentLocation, allBranches} = useLocation();
   const {user} = useAuth();
   const [inventory, setInventory] = useState<any[]>([]);
   const [masterCatalog, setMasterCatalog] = useState<any[]>([]);
   const [entryType, setEntryType] = useState<'master' | 'local'>('master');
   const [loading, setLoading] = useState(true);
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [comboboxSearch, setComboboxSearch] = useState('');
@@ -165,7 +167,6 @@ export default function InventoryPage() {
     const res = await fetchBackend('addInventory', { ...form, location_id: loc });
     if (res.status === 'success') {
       toast.success("Stock recorded successfully");
-      setIsAddOpen(false);
       loadData();
       setForm({ 
         catalogId: '', 
@@ -229,276 +230,12 @@ export default function InventoryPage() {
            >
              <FileDown className="w-4 h-4 mr-2" /> PDF Export
            </Button>
-           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-indigo-600 hover:bg-indigo-700 h-12 px-6 rounded-2xl shadow-xl shadow-indigo-600/20 font-bold border-none">
-                  <Plus className="w-4 h-4 mr-2" /> Inventory Intake
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-[40px] sm:max-w-[700px] p-0 overflow-hidden border-none shadow-2xl">
-                <ScrollArea className="max-h-[95vh]">
-                  <div className="p-10 space-y-8">
-                    <DialogHeader>
-                      <div className="flex items-center gap-2 mb-2">
-                         <Sparkles className="w-4 h-4 text-indigo-600" />
-                         <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">Operational Intake</span>
-                      </div>
-                      <DialogTitle className="text-3xl font-black tracking-tighter">Internal Stock Entry</DialogTitle>
-                      <DialogDescription className="font-medium text-gray-500">
-                        {entryType === 'master' 
-                          ? 'Select standardized assets from the regional master catalog.' 
-                          : 'Register a branch-specific item not found in the global registry.'}
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    {/* Dual-Option Header (Segmented Control) */}
-                    <div className="flex p-1.5 bg-gray-100 rounded-2xl w-full max-w-md mx-auto">
-                      <button 
-                        onClick={() => {
-                          setEntryType('master');
-                          setForm({ ...form, catalogId: '', name: '', category: '', price: '' as any, stock: '' as any });
-                        }}
-                        className={cn(
-                          "flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300",
-                          entryType === 'master' ? "bg-white text-indigo-600 shadow-xl scale-[1.02]" : "text-gray-400 hover:text-gray-500"
-                        )}
-                      >
-                        From Master Catalog
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setEntryType('local');
-                          setForm({ ...form, catalogId: 'local-custom', name: '', category: '', price: '' as any, stock: '' as any });
-                        }}
-                        className={cn(
-                          "flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300",
-                          entryType === 'local' ? "bg-white text-indigo-600 shadow-xl scale-[1.02]" : "text-gray-400 hover:text-gray-500"
-                        )}
-                      >
-                        Add Local Product
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                        <div className="space-y-4">
-                          {entryType === 'master' ? (
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Search Master Catalog</Label>
-                                <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                                  <PopoverTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={comboboxOpen}
-                                        className="w-full justify-between rounded-2xl h-14 bg-gray-200/50 border-none px-4 font-bold text-left hover:bg-gray-200 transition-all focus:ring-2 focus:ring-indigo-600"
-                                      >
-                                        <div className="flex items-center gap-2 text-slate-700">
-                                          {form.name ? form.name : "Choose Global Product..."}
-                                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </div>
-                                      </Button>
-                                  </PopoverTrigger>
-
-                                  <PopoverContent className="w-[300px] p-0 rounded-2xl border-none shadow-2xl overflow-hidden" align="start">
-                                    <Command className="border-none">
-                                      <CommandInput 
-                                        placeholder="Filter regional catalog..." 
-                                        value={comboboxSearch}
-                                        onValueChange={setComboboxSearch}
-                                        className="border-none focus:ring-0 text-sm font-bold h-12"
-                                      />
-                                      <CommandList className="max-h-[300px] overflow-y-auto">
-                                        <CommandEmpty className="p-8 text-center">
-                                           <p className="text-xs font-bold text-gray-400 italic">No matching global assets found.</p>
-                                        </CommandEmpty>
-                                        <CommandGroup className="p-2">
-                                          {masterCatalog.map((cat) => (
-                                            <CommandItem
-                                              key={cat.id}
-                                              value={cat.name}
-                                              onSelect={() => handleCatalogSelect(cat.id)}
-                                              className="rounded-xl p-3 cursor-pointer hover:bg-gray-50 aria-selected:bg-indigo-50 aria-selected:text-indigo-600 transition-colors"
-                                            >
-                                              <Check
-                                                className={cn(
-                                                  "mr-2 h-4 w-4",
-                                                  form.catalogId === cat.id ? "opacity-100" : "opacity-0"
-                                                )}
-                                              />
-                                              <div className="flex flex-col">
-                                                <span className="font-bold text-xs">{cat.name}</span>
-                                                <span className="text-[9px] uppercase tracking-widest opacity-50">{cat.category}</span>
-                                              </div>
-                                            </CommandItem>
-                                          ))}
-                                        </CommandGroup>
-                                      </CommandList>
-                                    </Command>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              
-                              <div className={cn("grid grid-cols-2 gap-4 transition-opacity", form.catalogId ? "opacity-100" : "opacity-50 cursor-not-allowed")}>
-                                <div className="space-y-2">
-                                  <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Incoming Stock Level</Label>
-                                  <Input 
-                                    type="number" 
-                                    className="rounded-2xl h-14 bg-gray-50 border-none px-4 font-bold focus:ring-2 focus:ring-indigo-600" 
-                                    placeholder="Enter quantity"
-                                    value={form.stock}
-                                    onChange={e => setForm({...form, stock: e.target.value})}
-                                    disabled={!form.catalogId}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Unit Selling Price (Rp)</Label>
-                                  <Input 
-                                    type="number" 
-                                    className="rounded-2xl h-14 bg-gray-50 border-none px-4 font-bold focus:ring-2 focus:ring-indigo-600" 
-                                    placeholder="Enter price (Rp)"
-                                    value={form.price}
-                                    onChange={e => setForm({...form, price: e.target.value})}
-                                    disabled={!form.catalogId}
-                                  />
-                                </div>
-                              </div>
-                              {form.catalogId && (
-                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest italic px-1">
-                                  Branch-specific pricing will override global suggested rates for this location.
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <motion.div 
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="space-y-4"
-                            >
-                               <div className="space-y-2">
-                                  <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Product Name</Label>
-                                  <Input 
-                                    className="rounded-2xl h-14 bg-orange-50/30 border-orange-100 border-2 px-4 font-bold focus:ring-orange-200" 
-                                    placeholder="Enter item name..."
-                                    value={form.name}
-                                    onChange={e => setForm({...form, name: e.target.value})}
-                                  />
-                               </div>
-                               <div className="space-y-2">
-                                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 pl-1">Category</Label>
-                                 <Input 
-                                   className="rounded-xl h-12 bg-gray-50 border-none font-bold" 
-                                   placeholder="e.g. Pastry, Supplies, Utility"
-                                   value={form.category}
-                                   onChange={e => setForm({...form, category: e.target.value})}
-                                 />
-                               </div>
-                               <div className="grid grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Incoming Stock</Label>
-                                    <Input 
-                                      type="number"
-                                      className="rounded-xl h-12 bg-gray-50 border-none font-bold focus:ring-2 focus:ring-indigo-600" 
-                                      placeholder="0"
-                                      value={form.stock}
-                                      onChange={e => setForm({...form, stock: e.target.value})}
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 pl-1">Unit Selling Price</Label>
-                                    <Input 
-                                      type="number"
-                                      className="rounded-xl h-12 bg-gray-50 border-none font-bold focus:ring-2 focus:ring-indigo-600" 
-                                      placeholder="Rp 0"
-                                      value={form.price}
-                                      onChange={e => setForm({...form, price: e.target.value})}
-                                    />
-                                  </div>
-                               </div>
-                               <div className="flex flex-col gap-1.5 pl-1">
-                                  <p className="text-[9px] text-orange-700 font-bold leading-relaxed uppercase tracking-widest">
-                                    Note: Local products are only visible to this branch and will be marked for audit by neural oversight.
-                                  </p>
-                                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest italic leading-none">
-                                    Branch-specific pricing will override global suggestions.
-                                  </p>
-                               </div>
-                            </motion.div>
-                          )}
-                        </div>
-
-                        {isSuperAdmin && (
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 pl-1">Target Branch</Label>
-                            <Select value={form.location_id} onValueChange={(v) => setForm({...form, location_id: v})}>
-                              <SelectTrigger className="rounded-2xl h-12 bg-gray-50 border-none px-4">
-                                <SelectValue placeholder="Select Branch" />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-2xl border-none shadow-2xl">
-                                {allBranches.filter(l => l.id !== 'ALL').map(loc => (
-                                  <SelectItem key={loc.id} value={loc.id} className="rounded-xl">{loc.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Visual Verification (4-Sided)</Label>
-                          <Tabs value={uploadMode} onValueChange={(v: any) => setUploadMode(v)} className="w-auto">
-                            <TabsList className="bg-gray-100 p-1 rounded-xl h-9">
-                              <TabsTrigger value="file" className="rounded-lg text-[10px] uppercase font-bold"><Upload className="w-3 h-3 mr-1" /> File</TabsTrigger>
-                              <TabsTrigger value="camera" className="rounded-lg text-[10px] uppercase font-bold"><Camera className="w-3 h-3 mr-1" /> Cam</TabsTrigger>
-                            </TabsList>
-                          </Tabs>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          {['front', 'back', 'right', 'left'].map((side) => (
-                            <div 
-                              key={side}
-                              className="aspect-[4/3] bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-200 transition-all group overflow-hidden relative"
-                            >
-                              {form.photos[side as keyof typeof form.photos] ? (
-                                <div className="absolute inset-0 bg-emerald-500/10 flex flex-col items-center justify-center p-4 text-center">
-                                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white mb-2">
-                                      <Check className="w-4 h-4" />
-                                   </div>
-                                   <span className="text-[10px] font-black uppercase text-emerald-600">{side} CAPTURED</span>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="p-3 bg-white rounded-xl shadow-sm text-gray-400 group-hover:text-indigo-600 transition-colors">
-                                    {uploadMode === 'camera' ? <Camera className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
-                                  </div>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{side} View</span>
-                                </>
-                              )}
-                              <input 
-                                type="file" 
-                                className="absolute inset-0 opacity-0 cursor-pointer" 
-                                onChange={() => setForm({...form, photos: {...form.photos, [side]: 'captured'}})}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-gray-400 font-medium italic">Requirement: Clear visibility of labels and dimensions.</p>
-                      </div>
-                    </div>
-
-                    <DialogFooter className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
-                      <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-2xl h-12 px-8 font-bold text-gray-400 hover:text-gray-600">DISCARD</Button>
-                      <Button onClick={handleAdd} className="flex-1 bg-indigo-600 h-12 px-8 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-600/30">
-                        {form.catalogId === 'local-custom' ? 'REGISTER & AUTHORIZE' : 'AUTHORIZE ENTRY'}
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                </ScrollArea>
-              </DialogContent>
-           </Dialog>
+           <Button 
+            className="bg-indigo-600 hover:bg-indigo-700 h-12 px-6 rounded-2xl shadow-xl shadow-indigo-600/20 font-bold border-none"
+            onClick={() => navigate('/inventory/add')}
+           >
+             <Plus className="w-4 h-4 mr-2" /> Inventory Intake
+           </Button>
         </div>
       </div>
 
@@ -576,9 +313,17 @@ export default function InventoryPage() {
                            <tr key={item.id} className="group hover:bg-gray-50/50 transition-colors">
                               <td className="py-5 pl-2">
                                  <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center font-bold text-indigo-600 text-xs">
-                                       {item.name.substring(0, 1)}
-                                    </div>
+                                    {item.image_url ? (
+                                      <img 
+                                        src={`${BACKEND_URL}${item.image_url}`} 
+                                        alt={item.name} 
+                                        className="w-10 h-10 rounded-xl object-cover border border-gray-100 bg-white shadow-sm"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center font-bold text-indigo-600 text-xs">
+                                         {item.name.substring(0, 1).toUpperCase()}
+                                      </div>
+                                    )}
                                     <span className="font-bold text-gray-900 tracking-tight">{item.name}</span>
                                  </div>
                               </td>

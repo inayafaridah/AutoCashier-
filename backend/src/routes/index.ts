@@ -11,7 +11,7 @@ import * as branchInventoryController from '../controllers/branchInventoryContro
 import * as broadcastController from '../controllers/broadcastController';
 import * as branchController from '../controllers/branchController';
 import * as transactionController from '../controllers/transactionController';
-import * as detectController from '../controllers/detectController';
+
 
 const router = Router();
 
@@ -50,11 +50,6 @@ router.delete('/branch-inventory/:id', branchInventoryController.deleteInventory
 router.post('/checkout', transactionController.checkout);
 router.get('/store-settings', transactionController.getStoreSettings);
 
-// AI Detection (YOLO-World + DINOv2 + Grounding DINO)
-router.post('/detect', detectController.detectProducts);
-router.post('/detect/sync-classes', detectController.syncClasses);
-router.get('/detect/status', detectController.getDetectionStatus);
-router.post('/detect/register-product', detectController.registerProduct);
-router.get('/detect/registered-products', detectController.getRegisteredProducts);
+
 
 export default router;

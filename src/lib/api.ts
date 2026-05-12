@@ -92,35 +92,11 @@ export async function fetchBackend(action: string, data: any = {}) {
         const targetLoc = data.location_id || 'ALL';
 
         if (targetLoc === 'ALL') {
-          // Step 1: get list of branches (summary only)
-          const summaryRes = await fetch(`${BACKEND_URL}/api/branch-inventory`);
-          const summaryJson = await summaryRes.json();
-          const branches: any[] = summaryJson?.data?.branches ?? summaryJson?.data ?? [];
-
-          if (!Array.isArray(branches) || branches.length === 0) {
-            return { status: 'success', data: [] };
-          }
-
-          // Step 2: fetch items from each branch in parallel, then flatten
-          const perBranchResults = await Promise.all(
-            branches.map(async (branch: any) => {
-              try {
-                const r = await fetch(`${BACKEND_URL}/api/branch-inventory/${branch.id}`);
-                const j = await r.json();
-                const items: any[] = Array.isArray(j?.data) ? j.data : [];
-                return items.map((item: any) => ({
-                  ...item,
-                  branchName: branch.name ?? '',
-                  location_id: branch.id ?? '',
-                }));
-              } catch {
-                return [];
-              }
-            })
-          );
-
-          const allItems = perBranchResults.flat();
-          return { status: 'success', data: allItems };
+          // Instead of fetching from all branches and duplicating items,
+          // simply fetch from the master catalog (products table) which has the combined data.
+          const response = await fetch(`${BACKEND_URL}/api/products`);
+          const json = await response.json();
+          return { status: 'success', data: json.data || [] };
         }
 
         // Specific branch

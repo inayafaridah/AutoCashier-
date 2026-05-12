@@ -90,6 +90,7 @@ export async function getBranchInventory(branchId: string) {
     .from('branch_inventory')
     .select(`
       id,
+      branch_id,
       stock,
       last_updated,
       products (
@@ -108,11 +109,12 @@ export async function getBranchInventory(branchId: string) {
   if (error) return { ok: false, error };
 
   // Flatten data for frontend
-  const formatted = data.map((item: any) => {
+  const formatted = (data || []).map((item: any) => {
     const product = item.products;
+    if (!product) return null;
+
     const images = product.product_images || [];
     
-    // Create a map of existing photos
     const photos = {
       front: images.some((img: any) => img.angle === 'front'),
       back: images.some((img: any) => img.angle === 'back'),
@@ -121,20 +123,23 @@ export async function getBranchInventory(branchId: string) {
     };
 
     return {
-      id: product.id,
+      id: product.id,           // product id (used for display)
+      inventory_id: item.id,    // branch_inventory row id (used for edit/delete)
       name: product.name,
       category: product.category,
       stock: item.stock,
       price: product.price,
       branch_id: item.branch_id,
+      image_url: product.image_url,
       lastUpdated: item.last_updated,
       photos: photos,
       syncStatus: 'Synced'
     };
-  });
+  }).filter(Boolean);
 
   return { ok: true, data: formatted };
 }
+
 
 export async function addItem(payload: any) {
   const db = client();
