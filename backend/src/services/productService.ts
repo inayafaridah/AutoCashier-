@@ -1,6 +1,8 @@
 import { supabase, supabaseAdmin } from '../config/supabaseClient';
 import { Product } from '../models/Product';
 
+const STORAGE_BUCKET = 'product-images';
+
 // Columns: id, sku, name, price, stock, ai_label, category, image_url, created_at
 const PRODUCT_COLUMNS = 'id, sku, name, price, stock, ai_label, category, image_url, created_at';
 
@@ -67,10 +69,63 @@ export async function createProduct(payload: Omit<Product, 'id' | 'created_at'>)
   }
 }
 
-// Save all 3 angle images to product_images table
+/**
+ * Upload a single image buffer to Supabase Storage.
+ * Returns the public URL of the uploaded file.
+ */
+export async function uploadImageToStorage(
+  buffer: Buffer,
+  storagePath: string,
+  mimetype: string
+): Promise<{ ok: boolean; url?: string; error?: any }> {
+  try {
+    const client = supabaseAdmin || supabase;
+    const { error: uploadError } = await client.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType: mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[productService] ❌ Storage upload error:', uploadError);
+      return { ok: false, error: uploadError };
+    }
+
+    const { data: publicUrlData } = client.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(storagePath);
+
+    const url = publicUrlData?.publicUrl;
+    console.log(`[productService] ✅ Uploaded to storage: ${storagePath} => ${url}`);
+    return { ok: true, url };
+  } catch (err) {
+    return { ok: false, error: err };
+  }
+}
+
+/**
+ * Delete a list of storage paths from Supabase Storage.
+ */
+export async function deleteImagesFromStorage(storagePaths: string[]): Promise<void> {
+  if (storagePaths.length === 0) return;
+  try {
+    const client = supabaseAdmin || supabase;
+    const { error } = await client.storage.from(STORAGE_BUCKET).remove(storagePaths);
+    if (error) {
+      console.warn('[productService] ⚠️  Storage delete error:', error);
+    } else {
+      console.log(`[productService] 🗑️  Deleted ${storagePaths.length} file(s) from storage.`);
+    }
+  } catch (err) {
+    console.warn('[productService] ⚠️  deleteImagesFromStorage exception:', err);
+  }
+}
+
+// Save angle images to product_images table (storagePath = Supabase Storage key, imageUrl = public URL)
 export async function insertProductImages(
   productId: string,
-  images: { angle: string; filename: string; storagePath: string }[]
+  images: { angle: string; filename: string; storagePath: string; imageUrl?: string }[]
 ) {
   try {
     const client = supabaseAdmin || supabase;
@@ -80,6 +135,7 @@ export async function insertProductImages(
       angle: img.angle,
       filename: img.filename,
       storage_path: img.storagePath,
+      image_url: img.imageUrl,
     }));
     const res: any = await client.from('product_images').insert(rows);
     if (res?.error) return { ok: false, error: res.error };
@@ -100,49 +156,37 @@ export async function updateProduct(id: string, payload: Partial<Product>) {
   }
 }
 
-// Get all image filenames for a product (from product_images + image_url fallback)
+/**
+ * Returns Supabase Storage paths (keys) for all images of a product.
+ * Used before deletion to clean up storage.
+ */
 export async function getProductImagePaths(id: string): Promise<string[]> {
   try {
     const client = supabaseAdmin || supabase;
     const paths: string[] = [];
 
-    console.log(`[productService] 🔍 Fetching image paths for ID: ${id}`);
+    console.log(`[productService] 🔍 Fetching storage paths for product ID: ${id}`);
 
-    // From product_images table (all angles)
+    // From product_images table — storage_path is the Supabase Storage key
     const { data: imgs, error: imgErr } = await client
       .from('product_images')
-      .select('filename')
+      .select('storage_path')
       .eq('product_id', id);
-    
+
     if (imgErr) console.error('[productService] Error fetching product_images:', imgErr);
-    
+
     if (imgs && imgs.length > 0) {
       imgs.forEach((r: any) => {
-        if (r.filename && !paths.includes(r.filename)) {
-          paths.push(r.filename);
+        if (r.storage_path && !paths.includes(r.storage_path)) {
+          paths.push(r.storage_path);
         }
       });
-      console.log(`[productService] 📸 Found ${imgs.length} files in product_images table.`);
+      console.log(`[productService] 📸 Found ${imgs.length} storage paths in product_images table.`);
     } else {
-      console.log('[productService] ❓ No files found in product_images table.');
+      console.log('[productService] ❓ No storage paths found in product_images table.');
     }
 
-    // From products.image_url (fallback for older products or main image)
-    const { data: prod } = await client
-      .from('products')
-      .select('image_url')
-      .eq('id', id)
-      .maybeSingle();
-      
-    if (prod?.image_url) {
-      const fname = prod.image_url.split('/').pop();
-      if (fname && !paths.includes(fname)) {
-        paths.push(fname);
-        console.log(`[productService] 🖼️  Found additional main image: ${fname}`);
-      }
-    }
-
-    console.log(`[productService] 📁 Total unique files to delete: ${paths.length}`);
+    console.log(`[productService] 📁 Total unique storage paths to delete: ${paths.length}`);
     return paths;
   } catch (err) {
     console.error('[productService] Critical error in getProductImagePaths:', err);
@@ -153,6 +197,11 @@ export async function getProductImagePaths(id: string): Promise<string[]> {
 export async function deleteProduct(id: string) {
   try {
     const client = supabaseAdmin || supabase;
+    
+    // 1. Delete from branch_inventory to avoid FK constraint errors
+    await client.from('branch_inventory').delete().eq('product_id', id);
+    
+    // 2. Delete from products
     const res: any = await client.from('products').delete().eq('id', id);
     if (res?.error) return { ok: false, error: res.error };
     return { ok: true };

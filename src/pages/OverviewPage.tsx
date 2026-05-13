@@ -12,7 +12,10 @@ import {
   Package,
   FileDown,
   Info,
-  ChevronDown
+  ChevronDown,
+  MapPin,
+  Globe,
+  Tag,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -149,11 +152,14 @@ export default function OverviewPage() {
   const statCards = [
     { 
       label: 'Total Revenue',
-      displayLabel: isSuperAdmin ? (
+      displayLabel: (
         <span className="flex items-center gap-1.5">
-          Total Revenue <span className="text-gray-400 font-medium lowercase tracking-normal">(All Branches)</span>
+          Total Revenue
+          {currentLocation !== 'ALL' && (
+            <span className="text-gray-400 font-medium lowercase tracking-normal">({locationName})</span>
+          )}
         </span>
-      ) : 'Total Revenue',
+      ),
       description: null,
       value: `Rp ${(data?.revenue || 0).toLocaleString()}`, 
       trend: `${(data?.revenueChange ?? 0) >= 0 ? '+' : ''}${data?.revenueChange ?? 0}%`, 
@@ -167,40 +173,76 @@ export default function OverviewPage() {
     { 
       label: 'Total Products', 
       value: data?.inventoryCount || 0, 
-      trend: isSuperAdmin ? null : '+4.2%', 
+      trend: null, 
       isUp: true, 
       icon: ShoppingBag, 
       color: 'bg-indigo-50 text-indigo-600',
       shadow: 'hover:shadow-indigo-500/20',
-      path: '/catalog'
+      path: isSuperAdmin ? '/catalog' : '/inventory'
     },
     { 
       label: isSuperAdmin ? 'Total Branches' : 'Active Promos', 
       value: isSuperAdmin ? (data?.locations || 0) : (data?.promos || 0), 
-      trend: isSuperAdmin ? null : '+8%', 
+      trend: null, 
       isUp: true, 
-      icon: isSuperAdmin ? Store : ShoppingBag, 
+      icon: isSuperAdmin ? Store : Tag, 
       color: isSuperAdmin ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600',
       shadow: isSuperAdmin ? 'hover:shadow-amber-500/20' : 'hover:shadow-rose-500/20',
       path: isSuperAdmin ? '/monitor' : '/promo'
     },
     { 
       label: 'Stock Status', 
-      value: (data?.inventoryCount || 0) > 100 ? 'Healthy' : 'Low Stock', 
-      trend: (data?.inventoryCount || 0) > 100 ? 'Normal' : 'Critical', 
-      isUp: (data?.inventoryCount || 0) > 100, 
+      value: (data?.totalStock || 0) > 50 ? 'Healthy' : 'Low Stock', 
+      trend: (data?.totalStock || 0) > 50 ? 'Normal' : 'Critical', 
+      isUp: (data?.totalStock || 0) > 50, 
       icon: Package, 
-      color: (data?.inventoryCount || 0) > 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
-      shadow: (data?.inventoryCount || 0) > 100 ? 'hover:shadow-emerald-500/20' : 'hover:shadow-rose-500/20',
-      path: '/inventory'
+      color: (data?.totalStock || 0) > 50 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
+      shadow: (data?.totalStock || 0) > 50 ? 'hover:shadow-emerald-500/20' : 'hover:shadow-rose-500/20',
+      path: isSuperAdmin ? '/monitor' : '/inventory'
     }
-  ].filter(card => isSuperAdmin ? card.label !== 'Stock Status' : true);
+  ];
 
   return (
-    <div className="space-y-12 pb-12 w-full max-w-full overflow-x-hidden">
+    <div className="space-y-8 pb-12 w-full max-w-full overflow-x-hidden">
+
+      {/* ── Branch Filter Bar ─────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+            {currentLocation === 'ALL' ? (
+              <Globe className="w-4 h-4 text-indigo-600" />
+            ) : (
+              <MapPin className="w-4 h-4 text-indigo-600" />
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Viewing Data For</p>
+            <p className="text-sm font-black text-gray-900">
+              {currentLocation === 'ALL' ? 'All Branches (Consolidated)' : locationName}
+            </p>
+          </div>
+          {currentLocation !== 'ALL' && (
+            <span className="px-2.5 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-full uppercase tracking-widest">
+              Branch Filter Active
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin ? (
+            <BranchSelector />
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="text-xs font-bold text-indigo-700">{locationName}</span>
+              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Your Branch</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Header Info */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-4">
-        <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-indigo-600 rounded-full shadow-[0_0_8px_#4F46E5]" />
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Live Feed Analytics</span>

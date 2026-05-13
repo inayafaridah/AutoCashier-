@@ -132,6 +132,13 @@ export async function fetchBackend(action: string, data: any = {}) {
         return await response.json();
       }
 
+      case 'deleteProduct': {
+        const response = await fetch(`${BACKEND_URL}/api/products/${data.id}`, {
+          method: 'DELETE'
+        });
+        return await response.json();
+      }
+
       case 'getBranchSummaries': {
         const response = await fetch(`${BACKEND_URL}/api/branch-inventory`);
         return await response.json();

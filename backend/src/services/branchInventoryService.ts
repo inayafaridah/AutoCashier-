@@ -173,16 +173,21 @@ export async function updateItem(payload: any) {
 
 export async function deleteItem(id: string, branchId?: string) {
   const db = client();
-  // If we have branchId and productId, use match
-  const query = db.from('branch_inventory').delete();
-  
+
+  let result;
   if (branchId) {
-    query.match({ product_id: id, branch_id: branchId });
+    // Delete by product_id + branch_id
+    result = await db.from('branch_inventory')
+      .delete()
+      .match({ product_id: id, branch_id: branchId });
   } else {
-    query.eq('id', id);
+    // Delete by branch_inventory row id
+    result = await db.from('branch_inventory')
+      .delete()
+      .eq('id', id);
   }
 
-  const { error } = await query;
+  const { error } = result;
   if (error) return { ok: false, error };
   return { ok: true };
 }

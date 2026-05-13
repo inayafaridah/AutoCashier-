@@ -74,6 +74,9 @@ export default function InventoryPage() {
   const [entryType, setEntryType] = useState<'master' | 'local'>('master');
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [comboboxSearch, setComboboxSearch] = useState('');
   const [currentItem, setCurrentItem] = useState<any>(null);
@@ -189,11 +192,39 @@ export default function InventoryPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const res = await fetchBackend('deleteInventory', { id, location_id: currentLocation });
-    if (res.status === 'success') {
-       toast.info("Item removed from inventory");
-       loadData();
+  const confirmDelete = (item: any) => {
+    setItemToDelete(item);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    
+    setIsDeleting(true);
+    const isAllView = currentLocation === 'ALL';
+
+    try {
+      let res;
+      if (isAllView) {
+        // Delete from master catalog (+ Supabase Storage)
+        res = await fetchBackend('deleteProduct', { id: itemToDelete.id });
+      } else {
+        // Delete from branch inventory only
+        res = await fetchBackend('deleteInventory', { id: itemToDelete.id, location_id: currentLocation });
+      }
+
+      if (res.status === 'success') {
+        toast.success(`✅ "${itemToDelete.name}" berhasil dihapus`);
+        loadData();
+      } else {
+        toast.error(`❌ Gagal menghapus: ${res.error || res.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      toast.error(`❌ Error: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -357,7 +388,7 @@ export default function InventoryPage() {
                                     <Button variant="ghost" size="icon" onClick={() => openEdit(item)} className="rounded-xl h-8 w-8 text-indigo-600 hover:bg-indigo-50">
                                        <Edit2 className="w-4 h-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="rounded-xl h-8 w-8 text-rose-600 hover:bg-rose-50">
+                                    <Button variant="ghost" size="icon" onClick={() => confirmDelete(item)} className="rounded-xl h-8 w-8 text-rose-600 hover:bg-rose-50">
                                        <Trash2 className="w-4 h-4" />
                                     </Button>
                                  </div>
@@ -398,6 +429,57 @@ export default function InventoryPage() {
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
             <Button onClick={handleEdit} className="bg-indigo-600">Apply Changes</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stunning Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="rounded-[32px] sm:max-w-md p-0 overflow-hidden border-none shadow-[0_20px_60px_-15px_rgba(225,29,72,0.3)]">
+          <div className="bg-gradient-to-br from-rose-500 to-rose-700 p-10 text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+               <Trash2 className="w-48 h-48 -rotate-12 translate-x-8 -translate-y-12" />
+            </div>
+            <div className="relative z-10">
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-xl border border-white/30 shadow-2xl">
+                <Trash2 className="w-12 h-12 text-white drop-shadow-md" />
+              </div>
+              <DialogTitle className="text-3xl font-black text-white tracking-tight mb-3 drop-shadow-md">
+                Hapus {currentLocation === 'ALL' ? 'Produk' : 'Stok'}?
+              </DialogTitle>
+              <DialogDescription className="text-rose-50 font-medium text-base px-2">
+                {currentLocation === 'ALL' 
+                  ? `Kamu akan menghapus "${itemToDelete?.name}" secara permanen dari katalog master dan sistem penyimpanan.`
+                  : `Apakah kamu yakin ingin menghapus "${itemToDelete?.name}" dari stok cabang ini?`}
+              </DialogDescription>
+            </div>
+          </div>
+          
+          <div className="p-8 bg-white">
+            <div className="flex gap-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setDeleteDialogOpen(false)}
+                className="flex-1 h-14 rounded-2xl border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                disabled={isDeleting}
+              >
+                Batal
+              </Button>
+              <Button 
+                onClick={handleDelete} 
+                disabled={isDeleting}
+                className="flex-1 h-14 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xl shadow-rose-600/20 transition-all hover:scale-[1.02]"
+              >
+                {isDeleting ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Menghapus...
+                  </div>
+                ) : (
+                   'Ya, Hapus'
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

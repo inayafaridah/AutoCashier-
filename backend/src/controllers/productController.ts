@@ -1,6 +1,4 @@
 import { Request, Response } from 'express';
-import fs from 'fs';
-import path from 'path';
 import * as productService from '../services/productService';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,21 +35,17 @@ export async function createProduct(req: Request, res: Response) {
       return res.status(400).json({ status: 'error', error: 'Nama dan harga produk wajib diisi.' });
     }
 
-    // 4. Front image as main image_url
-    const frontFile = files?.imageFront?.[0];
-    const imageUrl = frontFile ? `/uploads/${frontFile.filename}` : null;
-
-    // 5. Generate unique SKU if not provided
+    // Generate unique SKU if not provided
     const finalSku = sku || `PROD-${name.substring(0, 3).toUpperCase()}-${uuidv4().substring(0, 8).toUpperCase()}`;
 
-    // 6. Save product to Supabase
+    // First, create the product in DB (without image_url yet; we need product ID for storage path)
     const result = await productService.createProduct({
       sku: finalSku,
       name,
       price: Number(price),
       category: category || null,
       ai_label: ai_label || null,
-      image_url: imageUrl,
+      image_url: null,
       stock: stock !== undefined ? Number(stock) : 0,
     });
 
@@ -65,33 +59,73 @@ export async function createProduct(req: Request, res: Response) {
     }
 
     const createdProduct = result.data;
-
-    // 7. Save all 3 angle photos to product_images table (MANDATORY)
     if (!createdProduct?.id) {
       throw new Error('Product ID not found after creation.');
     }
 
-    const imageEntries: { angle: string; filename: string; storagePath: string }[] = [];
-    if (files.imageLeft?.[0]) imageEntries.push({ angle: 'left', filename: files.imageLeft[0].filename, storagePath: `/uploads/${files.imageLeft[0].filename}` });
-    if (files.imageRight?.[0]) imageEntries.push({ angle: 'right', filename: files.imageRight[0].filename, storagePath: `/uploads/${files.imageRight[0].filename}` });
-    if (files.imageFront?.[0]) imageEntries.push({ angle: 'front', filename: files.imageFront[0].filename, storagePath: `/uploads/${files.imageFront[0].filename}` });
-    if (files.imageBack?.[0]) imageEntries.push({ angle: 'back', filename: files.imageBack[0].filename, storagePath: `/uploads/${files.imageBack[0].filename}` });
+    // Upload all angle images to Supabase Storage
+    const ANGLE_FIELDS = [
+      { field: 'imageFront', angle: 'front' },
+      { field: 'imageBack',  angle: 'back'  },
+      { field: 'imageLeft',  angle: 'left'  },
+      { field: 'imageRight', angle: 'right' },
+    ];
 
-    const imgResult = await productService.insertProductImages(createdProduct.id, imageEntries);
-    if (!imgResult.ok) {
-      console.error('[createProduct] ❌ DATABASE ERROR (product_images):', JSON.stringify(imgResult.error, null, 2));
-      return res.status(500).json({
-        status: 'error',
-        error: 'Gagal menyimpan foto sudut pandang ke database. Cek apakah database mengizinkan sudut "back".',
-        details: imgResult.error
+    const imageEntries: { angle: string; filename: string; storagePath: string; imageUrl: string }[] = [];
+    let frontPublicUrl: string | null = null;
+
+    for (const { field, angle } of ANGLE_FIELDS) {
+      const file = files?.[field]?.[0];
+      if (!file) continue;
+
+      // e.g. products/uuid-123/front-originalname.jpg
+      const storagePath = `products/${createdProduct.id}/${angle}-${file.originalname}`;
+
+      const uploadResult = await productService.uploadImageToStorage(
+        file.buffer,
+        storagePath,
+        file.mimetype
+      );
+
+      if (!uploadResult.ok || !uploadResult.url) {
+        console.warn(`[createProduct] ⚠️  Failed to upload ${angle} image to storage:`, uploadResult.error);
+        continue; // non-fatal: keep going with other angles
+      }
+
+      imageEntries.push({
+        angle,
+        filename: file.originalname,
+        storagePath,
+        imageUrl: uploadResult.url,
       });
+
+      if (angle === 'front') {
+        frontPublicUrl = uploadResult.url;
+      }
     }
 
-    console.log(`[createProduct] ✅ ${imageEntries.length} foto berhasil didaftarkan untuk produk: ${createdProduct.name}`);
-    
-    // 8. Initialize in all branches (NEW: Connect to branches)
-    await productService.initializeProductInAllBranches(createdProduct.id, Number(price));
+    // Update product image_url with front image's public URL
+    if (frontPublicUrl) {
+      await productService.updateProduct(createdProduct.id, { image_url: frontPublicUrl });
+      createdProduct.image_url = frontPublicUrl;
+    }
 
+    // Save all angle metadata to product_images table
+    if (imageEntries.length > 0) {
+      const imgResult = await productService.insertProductImages(createdProduct.id, imageEntries);
+      if (!imgResult.ok) {
+        console.error('[createProduct] ❌ DATABASE ERROR (product_images):', JSON.stringify(imgResult.error, null, 2));
+        return res.status(500).json({
+          status: 'error',
+          error: 'Gagal menyimpan metadata foto ke database.',
+          details: imgResult.error
+        });
+      }
+      console.log(`[createProduct] ✅ ${imageEntries.length} foto berhasil diupload & didaftarkan untuk produk: ${createdProduct.name}`);
+    }
+
+    // Initialize stock in all branches
+    await productService.initializeProductInAllBranches(createdProduct.id, Number(price));
 
     return res.status(201).json({
       status: 'success',
@@ -114,29 +148,16 @@ export async function updateProductController(req: Request, res: Response) {
 export async function deleteProductController(req: Request, res: Response) {
   const { id } = req.params;
 
-  // 1. Collect all image filenames linked to this product
-  const filenames = await productService.getProductImagePaths(id);
+  // 1. Collect all Supabase Storage paths for this product
+  const storagePaths = await productService.getProductImagePaths(id);
 
-  // 2. Delete physical files from disk (skip if file not found)
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  let deletedFiles = 0;
-  for (const filename of filenames) {
-    const filePath = path.join(uploadsDir, filename);
-    try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        deletedFiles++;
-        console.log(`[deleteProduct] 🗑️  Deleted file: ${filename}`);
-      }
-    } catch (err) {
-      console.warn(`[deleteProduct] Could not delete file ${filename}:`, err);
-    }
-  }
+  // 2. Delete files from Supabase Storage
+  await productService.deleteImagesFromStorage(storagePaths);
 
   // 3. Delete product from DB (cascades to product_images automatically)
   const result = await productService.deleteProduct(id);
   if (!result.ok) return res.status(500).json({ status: 'error', error: result.error?.message || result.error });
 
-  console.log(`[deleteProduct] ✅ Product ${id} deleted, ${deletedFiles}/${filenames.length} files removed from disk`);
-  return res.json({ status: 'success', deletedFiles });
+  console.log(`[deleteProduct] ✅ Product ${id} deleted, ${storagePaths.length} file(s) removed from storage.`);
+  return res.json({ status: 'success', deletedFiles: storagePaths.length });
 }

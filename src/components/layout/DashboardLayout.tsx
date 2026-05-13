@@ -1,4 +1,5 @@
 import {useState, ReactNode, useEffect} from 'react';
+import foto2 from '../../../assets/2.png';
 import {motion, AnimatePresence} from 'motion/react';
 import {NavLink, useLocation as useRouteLocation, useNavigate} from 'react-router-dom';
 import {
@@ -83,74 +84,105 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
       {/* Sidebar... */}
       <aside 
         className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out shadow-[10px_0_40px_rgba(0,0,0,0.1)]",
-          isSidebarOpen ? "w-[260px]" : "w-0 lg:w-20 overflow-hidden"
+          "fixed lg:static inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out shadow-[10px_0_40px_rgba(0,0,0,0.1)] overflow-hidden",
+          isSidebarOpen ? "w-[260px]" : "w-0 lg:w-[72px]"
         )}
       >
-        <div className="h-full flex flex-col p-6">
-          <div className="flex items-center justify-between mb-12 px-2 sticky top-0 bg-[#0F172A] z-10 py-2">
-            <div className={cn("flex items-center gap-4 transition-all duration-300 transform", !isSidebarOpen && "lg:opacity-0 lg:-translate-x-10")}>
-              <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-500/30 group cursor-pointer hover:rotate-12 transition-transform">
-                <Sparkles className="text-white w-7 h-7" />
+        <div className="h-full flex flex-col py-6 px-3">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-10 sticky top-0 bg-[#0F172A] z-10 py-2">
+            {isSidebarOpen ? (
+              <div className="flex items-center gap-3 pl-1 min-w-0">
+                <div className="w-12 h-12 rounded-xl overflow-hidden shadow-lg shadow-indigo-500/20 flex-shrink-0 hover:scale-105 transition-transform cursor-pointer">
+                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-lg font-black tracking-tighter uppercase italic leading-none truncate">AutoCashier</span>
+                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mt-0.5">Enterprise UI</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-black tracking-tighter uppercase italic leading-none">AutoCashier</span>
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mt-1">Enterprise UI</span>
+            ) : (
+              <div className="w-full flex justify-center">
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-indigo-500/20 hover:scale-110 transition-transform cursor-pointer">
+                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-cover" />
+                </div>
               </div>
-            </div>
+            )}
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="hover:bg-white/10 text-white/40 lg:hidden"
+              className="hover:bg-white/10 text-white/40 lg:hidden flex-shrink-0"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 -mx-2 px-2">
-            <div className="space-y-2">
-              <p className={cn("text-[10px] font-bold text-white/20 uppercase tracking-[0.3em] ml-4 mb-4 transition-opacity", !isSidebarOpen && "lg:opacity-0")}>
-                Main Menu
-              </p>
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({isActive}) => cn(
-                    "w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group relative overflow-hidden",
-                    isActive 
-                      ? "bg-indigo-600 text-white shadow-xl shadow-indigo-600/20" 
-                      : "text-white/40 hover:text-white hover:bg-white/5"
-                  )}
-                >
-                  <item.icon className={cn(
-                    "w-6 h-6 transition-all duration-500 group-hover:scale-110",
-                    routeLocation.pathname === item.path ? "scale-110 rotate-0" : "group-hover:rotate-12"
-                  )} />
-                  <span className={cn(
-                    "font-bold text-[15px] tracking-tight transition-all duration-500 whitespace-nowrap",
-                    !isSidebarOpen && "lg:opacity-0 lg:translate-x-10"
-                  )}>
-                    {item.label}
-                  </span>
-                </NavLink>
-              ))}
+          <ScrollArea className="flex-1">
+            <div className="space-y-1.5">
+              {isSidebarOpen && (
+                <p className="text-[9px] font-black text-white/25 uppercase tracking-[0.35em] px-4 mb-4">
+                  Main Menu
+                </p>
+              )}
+              {navItems.map((item) => {
+                const isActive = routeLocation.pathname === item.path;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    title={!isSidebarOpen ? item.label : undefined}
+                    className={cn(
+                      "flex items-center transition-all duration-200 group relative rounded-xl overflow-hidden",
+                      isSidebarOpen
+                        ? "gap-3 px-4 py-3 w-full"
+                        : "justify-center p-0 mx-auto w-11 h-11",
+                      isActive
+                        ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/40"
+                        : "text-white/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10"
+                    )}
+                  >
+                    {/* Active glow bar */}
+                    {isActive && isSidebarOpen && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white/50 rounded-r-full" />
+                    )}
+                    <item.icon className={cn(
+                      "flex-shrink-0 transition-all duration-200 w-[18px] h-[18px]",
+                      isActive ? "text-white" : "text-white/60 group-hover:text-white group-hover:scale-110"
+                    )} />
+                    {isSidebarOpen && (
+                      <span className={cn(
+                        "text-[13px] tracking-tight whitespace-nowrap transition-all",
+                        isActive ? "font-bold" : "font-medium"
+                      )}>
+                        {item.label}
+                      </span>
+                    )}
+                    {isActive && isSidebarOpen && (
+                      <div className="ml-auto flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
+                      </div>
+                    )}
+                  </NavLink>
+                );
+              })}
             </div>
           </ScrollArea>
 
-          <div className="mt-8">
-             <Button
-               variant="ghost"
-               onClick={handleLogout}
-               className={cn(
-                 "w-full flex items-center justify-start gap-4 h-14 px-4 rounded-2xl text-blue-500 hover:text-white hover:bg-blue-600/20 transition-all font-bold",
-                 !isSidebarOpen && "lg:justify-center"
-               )}
-             >
-               <LogOut className="w-6 h-6" />
-               <span className={cn("transition-all duration-500", !isSidebarOpen && "lg:hidden lg:opacity-0")}>Sign Out</span>
-             </Button>
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <button
+              onClick={handleLogout}
+              title={!isSidebarOpen ? 'Sign Out' : undefined}
+              className={cn(
+                "flex items-center transition-all duration-300 rounded-2xl text-rose-400 hover:text-white hover:bg-rose-500/20 font-semibold",
+                isSidebarOpen
+                  ? "w-full gap-3 px-3 py-3"
+                  : "justify-center p-3 mx-auto w-12 h-12"
+              )}
+            >
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              {isSidebarOpen && <span className="text-[14px]">Sign Out</span>}
+            </button>
           </div>
         </div>
       </aside>
@@ -160,14 +192,12 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
 
         <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-40 shrink-0">
           <div className="flex items-center gap-6">
-            <Button 
-              variant="secondary" 
-              size="icon"
+            <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="bg-gray-50 border border-gray-100 hover:bg-gray-100 rounded-2xl shadow-sm text-gray-500 transition-all active:scale-90"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/30 transition-all active:scale-90 hover:scale-105 flex-shrink-0"
             >
-              {isSidebarOpen ? <X className="w-5 h-5 lg:hidden" /> : <Menu className="w-5 h-5" />}
-            </Button>
+              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
             <div className="flex flex-col">
               <h1 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
                 {activePageLabel} {user?.role === 'branch_admin' ? `- ${locationName}` : ''}
