@@ -1,12 +1,11 @@
 import { supabaseAdmin as supabase } from '../config/supabaseClient';
 import { comparePassword } from '../utils/passwords';
 import { signToken } from '../utils/jwt';
-import { User } from '../models/User';
 
 export async function loginWithUsername(username: string, password: string) {
   const { data, error } = await supabase
     .from('users')
-    .select('*')
+    .select('id, username, email, full_name, role, created_at, whatsapp, password, avatar_url')
     .eq('username', username)
     .limit(1)
     .maybeSingle();
@@ -15,17 +14,14 @@ export async function loginWithUsername(username: string, password: string) {
     return { ok: false, error: 'INVALID_CREDENTIALS' };
   }
 
-  const user = data as User & { password_hash?: string; password?: string };
-
-  const hash = user.password_hash || user.password;
+  const hash = data.password;
   const match = hash ? await comparePassword(password, hash) : false;
   if (!match) return { ok: false, error: 'INVALID_CREDENTIALS' };
 
-  const token = signToken({ sub: user.id, role: user.role, username: user.username });
+  const token = signToken({ sub: data.id, role: data.role, username: data.username });
 
-  // remove sensitive fields
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { password: _password, ...safeUser } = user as any;
+  // Return safe user (no password)
+  const { password: _pw, ...safeUser } = data;
 
   return { ok: true, token, user: safeUser };
 }

@@ -184,11 +184,34 @@ export default function InventoryPage() {
   };
 
   const handleEdit = async () => {
-    const res = await fetchBackend('updateInventory', { ...currentItem, ...form });
-    if (res.status === 'success') {
-      toast.success("Catalog updated successfully");
-      setIsEditOpen(false);
-      loadData();
+    const isAllView = currentLocation === 'ALL';
+    try {
+      let res;
+      if (isAllView) {
+        const fetchRes = await fetch(`${BACKEND_URL}/api/products/${currentItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            price: Number(form.price),
+            stock: Number(form.stock),
+          }),
+        });
+        const data = await fetchRes.json();
+        res = { status: fetchRes.ok && data.status === 'success' ? 'success' : 'error', message: data.error };
+      } else {
+        res = await fetchBackend('updateInventory', { ...currentItem, ...form });
+      }
+
+      if (res.status === 'success') {
+        toast.success("Catalog updated successfully");
+        setIsEditOpen(false);
+        loadData();
+      } else {
+        toast.error(res.message || res.error || "Failed to update catalog");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Network error");
     }
   };
 
@@ -231,12 +254,12 @@ export default function InventoryPage() {
   const openEdit = (item: any) => {
     setCurrentItem(item);
     setForm({ 
-      catalogId: item.catalogId || '',
+      catalogId: item.catalogId || item.id || '',
       name: item.name, 
       category: item.category, 
       stock: item.stock, 
       price: item.price, 
-      location_id: item.location_id,
+      location_id: item.location_id || item.branch_id || '',
       photos: item.photos || { front: '', back: '', right: '', left: '' }
     });
     setIsEditOpen(true);

@@ -365,15 +365,13 @@ export default function BranchInventoryPage() {
                                              return (
                                                <React.Fragment key={side.label}>
                                                   <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <div className={cn(
+                                                    <TooltipTrigger className={cn(
                                                         "w-11 h-11 rounded-[14px] flex items-center justify-center text-[12px] font-black cursor-help transition-all duration-500 shadow-sm border-2",
                                                         hasPhoto 
                                                           ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-600/20 scale-105" 
                                                           : "bg-white text-gray-200 border-gray-100 opacity-40 hover:opacity-100"
                                                       )}>
-                                                         {side.label}
-                                                      </div>
+                                                       {side.label}
                                                     </TooltipTrigger>
                                                     <TooltipContent className="bg-gray-900 text-white border-none rounded-2xl px-5 py-3 shadow-2xl">
                                                       <p className="text-[11px] font-black uppercase tracking-[0.2em]">

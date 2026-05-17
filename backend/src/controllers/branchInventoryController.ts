@@ -21,7 +21,8 @@ export async function addInventory(req: Request, res: Response) {
 }
 
 export async function updateInventory(req: Request, res: Response) {
-  const result = await branchService.updateItem(req.body);
+  const payload = { ...req.body, id: req.params.id };
+  const result = await branchService.updateItem(payload);
   if (!result.ok) return res.status(500).json({ status: 'error', error: result.error });
   return res.json({ status: 'success', data: result.data });
 }

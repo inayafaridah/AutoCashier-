@@ -153,7 +153,7 @@ export default function OverviewPage() {
     { 
       label: 'Total Revenue',
       displayLabel: (
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5 text-gray-400 group-hover:text-emerald-600 transition-colors duration-500">
           Total Revenue
           {currentLocation !== 'ALL' && (
             <span className="text-gray-400 font-medium lowercase tracking-normal">({locationName})</span>
@@ -166,8 +166,10 @@ export default function OverviewPage() {
       vsLabel: getVsLabel(),
       isUp: (data?.revenueChange ?? 0) >= 0, 
       icon: CircleDollarSign, 
-      color: 'bg-emerald-50 text-emerald-600',
-      shadow: 'hover:shadow-emerald-500/20',
+      glow: 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(16,185,129,0.15)] border-gray-100 hover:border-emerald-200',
+      iconBox: 'bg-emerald-50 text-emerald-600 border-transparent group-hover:bg-emerald-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-[0_8px_20px_rgba(16,185,129,0.3)]',
+      accentOrb: 'bg-emerald-100',
+      textColor: 'text-gray-900 group-hover:text-emerald-950',
       path: null
     },
     { 
@@ -176,8 +178,10 @@ export default function OverviewPage() {
       trend: null, 
       isUp: true, 
       icon: ShoppingBag, 
-      color: 'bg-indigo-50 text-indigo-600',
-      shadow: 'hover:shadow-indigo-500/20',
+      glow: 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.15)] border-gray-100 hover:border-indigo-200',
+      iconBox: 'bg-indigo-50 text-indigo-600 border-transparent group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:-rotate-3 group-hover:shadow-[0_8px_20px_rgba(99,102,241,0.3)]',
+      accentOrb: 'bg-indigo-100',
+      textColor: 'text-gray-900 group-hover:text-indigo-950',
       path: isSuperAdmin ? '/catalog' : '/inventory'
     },
     { 
@@ -186,8 +190,10 @@ export default function OverviewPage() {
       trend: null, 
       isUp: true, 
       icon: isSuperAdmin ? Store : Tag, 
-      color: isSuperAdmin ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600',
-      shadow: isSuperAdmin ? 'hover:shadow-amber-500/20' : 'hover:shadow-rose-500/20',
+      glow: isSuperAdmin ? 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(245,158,11,0.15)] border-gray-100 hover:border-amber-200' : 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(244,63,94,0.15)] border-gray-100 hover:border-rose-200',
+      iconBox: isSuperAdmin ? 'bg-amber-50 text-amber-600 border-transparent group-hover:bg-amber-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-[0_8px_20px_rgba(245,158,11,0.3)]' : 'bg-rose-50 text-rose-600 border-transparent group-hover:bg-rose-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-[0_8px_20px_rgba(244,63,94,0.3)]',
+      accentOrb: isSuperAdmin ? 'bg-amber-100' : 'bg-rose-100',
+      textColor: 'text-gray-900 group-hover:text-gray-900',
       path: isSuperAdmin ? '/monitor' : '/promo'
     },
     { 
@@ -196,8 +202,10 @@ export default function OverviewPage() {
       trend: (data?.totalStock || 0) > 50 ? 'Normal' : 'Critical', 
       isUp: (data?.totalStock || 0) > 50, 
       icon: Package, 
-      color: (data?.totalStock || 0) > 50 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
-      shadow: (data?.totalStock || 0) > 50 ? 'hover:shadow-emerald-500/20' : 'hover:shadow-rose-500/20',
+      glow: (data?.totalStock || 0) > 50 ? 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(16,185,129,0.15)] border-gray-100 hover:border-emerald-200' : 'shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(244,63,94,0.15)] border-gray-100 hover:border-rose-200',
+      iconBox: (data?.totalStock || 0) > 50 ? 'bg-emerald-50 text-emerald-600 border-transparent group-hover:bg-emerald-500 group-hover:text-white group-hover:scale-110 group-hover:-rotate-3 group-hover:shadow-[0_8px_20px_rgba(16,185,129,0.3)]' : 'bg-rose-50 text-rose-600 border-transparent group-hover:bg-rose-500 group-hover:text-white group-hover:scale-110 group-hover:-rotate-3 group-hover:shadow-[0_8px_20px_rgba(244,63,94,0.3)]',
+      accentOrb: (data?.totalStock || 0) > 50 ? 'bg-emerald-100' : 'bg-rose-100',
+      textColor: 'text-gray-900 group-hover:text-gray-900',
       path: isSuperAdmin ? '/monitor' : '/inventory'
     }
   ];
@@ -206,37 +214,24 @@ export default function OverviewPage() {
     <div className="space-y-8 pb-12 w-full max-w-full overflow-x-hidden">
 
       {/* ── Branch Filter Bar ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+      <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 bg-white rounded-full border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] mb-2">
+        <div className="flex items-center gap-4 pl-3">
+          <div className="w-10 h-10 bg-indigo-50/80 rounded-full flex items-center justify-center border border-indigo-100/50">
             {currentLocation === 'ALL' ? (
-              <Globe className="w-4 h-4 text-indigo-600" />
+              <Globe className="w-5 h-5 text-indigo-600" />
             ) : (
-              <MapPin className="w-4 h-4 text-indigo-600" />
+              <MapPin className="w-5 h-5 text-indigo-600" />
             )}
           </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Viewing Data For</p>
-            <p className="text-sm font-black text-gray-900">
+          <div className="flex flex-col justify-center">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Viewing Data For</p>
+            <p className="text-sm font-black text-gray-900 leading-none">
               {currentLocation === 'ALL' ? 'All Branches (Consolidated)' : locationName}
             </p>
           </div>
-          {currentLocation !== 'ALL' && (
-            <span className="px-2.5 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-full uppercase tracking-widest">
-              Branch Filter Active
-            </span>
-          )}
         </div>
-        <div className="flex items-center gap-3">
-          {isSuperAdmin ? (
-            <BranchSelector />
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
-              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="text-xs font-bold text-indigo-700">{locationName}</span>
-              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Your Branch</span>
-            </div>
-          )}
+        <div className="pr-1">
+          <BranchSelector />
         </div>
       </div>
 
@@ -249,23 +244,20 @@ export default function OverviewPage() {
           </div>
           <div className="flex flex-col gap-2">
             <h2 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter leading-none">
-              {currentLocation === 'ALL' ? 'All Branches' : locationName}
+              Enterprise Dashboard
             </h2>
           </div>
           <p className="text-gray-500 font-medium tracking-tight max-w-xl">
-            {currentLocation === 'ALL' 
-              ? 'Consolidated performance for the entire network.' 
-              : `Operational and financial performance for ${locationName} branch.`
-            }
+            Real-time operational and financial performance metrics.
           </p>
         </div>
-        <div className="flex items-end gap-6">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
             <Tooltip>
-              <TooltipTrigger render={<div className="px-6 py-4 bg-white rounded-[24px] border border-gray-100 shadow-sm flex flex-col cursor-help group hover:border-indigo-100 transition-colors mb-2" />}>
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-indigo-400">
+              <TooltipTrigger render={<div className="px-6 py-4 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-start cursor-help group hover:border-indigo-100 transition-colors" />}>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1 group-hover:text-indigo-400">
                   Network Health Score <Info className="w-3 h-3" />
                 </span>
-                <span className="text-lg font-black text-indigo-600">{data?.healthScore || 0}/100</span>
+                <span className="text-xl font-black text-indigo-600 leading-none">{data?.healthScore || 0}/100</span>
               </TooltipTrigger>
               <TooltipContent className="bg-[#0F172A] text-white border border-white/10 rounded-[24px] p-6 shadow-2xl min-w-[280px]">
                 <div className="space-y-4">
@@ -315,21 +307,18 @@ export default function OverviewPage() {
               </TooltipContent>
             </Tooltip>
 
-            <div className="flex flex-col items-end gap-4 min-h-[120px] justify-between ml-auto">
-              {isSuperAdmin && <BranchSelector />}
-              <Button 
-                onClick={() => setIsModalOpen(true)}
-                disabled={isExporting}
-                className="h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-600/20 font-black uppercase tracking-widest text-xs gap-3 w-[240px] transition-all hover:scale-[1.02] border-none"
-              >
-                {isExporting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <FileDown className="w-5 h-5" />
-                )}
-                <span>{isExporting ? 'Generating...' : 'Export Summary Report'}</span>
-              </Button>
-            </div>
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              disabled={isExporting}
+              className="h-[68px] px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-600/20 font-black uppercase tracking-widest text-xs gap-3 transition-all hover:scale-[1.02] border-none"
+            >
+              {isExporting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <FileDown className="w-5 h-5" />
+              )}
+              <span>{isExporting ? 'Generating...' : 'Export Summary Report'}</span>
+            </Button>
         </div>
       </div>
 
@@ -341,10 +330,7 @@ export default function OverviewPage() {
         branchName={locationName}
       />
 
-      <div className={cn(
-        "grid gap-6",
-        isSuperAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-      )}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, i) => {
           const isClickable = !!stat.path;
           const CardWrapper = isClickable ? (
@@ -365,33 +351,42 @@ export default function OverviewPage() {
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -4 }}
               transition={{ delay: i * 0.1, duration: 0.3 }}
-              className="flex"
+              className="flex w-full"
             >
               <CardWrapper>
                 <Card 
                   onClick={() => isClickable && navigate(stat.path!)}
                   className={cn(
-                    "w-full rounded-[32px] border-2 border-transparent shadow-[0_8px_30px_rgba(0,0,0,0.02)] overflow-hidden bg-white transition-all duration-300",
-                    "hover:border-blue-400 hover:shadow-[0_20px_50px_rgba(59,130,246,0.2)]",
+                    "w-full rounded-[32px] border overflow-hidden bg-white relative group transition-all duration-700 ease-out",
+                    stat.glow,
+                    "hover:-translate-y-2",
                     isClickable ? "cursor-pointer" : "cursor-default"
                   )}
                 >
-                  <CardContent className="p-8">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className={cn("p-4 rounded-2xl", stat.color)}>
+                  {/* Subtle top border gradient replacement or reflection */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                  
+                  {/* Soft colorful orb background */}
+                  <div className={cn(
+                    "absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[70px] opacity-40 group-hover:opacity-70 transition-all duration-700 ease-out pointer-events-none group-hover:scale-[2]",
+                    stat.accentOrb
+                  )} />
+
+                  <CardContent className="p-6 sm:p-8 relative z-10 flex flex-col h-full justify-between">
+                    <div className="flex justify-between items-start mb-8">
+                      <div className={cn("p-4 rounded-2xl border transition-all duration-500", stat.iconBox)}>
                         <stat.icon className="w-6 h-6" />
                       </div>
                       {stat.trend && (
                         <div className="flex flex-col items-end gap-1">
                           <div className={cn(
-                            "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black",
-                            stat.isUp ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-colors duration-500 shadow-sm",
+                            stat.isUp ? "bg-emerald-50 text-emerald-600 border-emerald-100 group-hover:bg-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100 group-hover:bg-rose-100"
                           )}>
                             <Tooltip>
                               <TooltipTrigger render={<div className="flex items-center gap-1 cursor-help" />}>
-                                {stat.isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                                {stat.isUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
                                 {stat.trend}
                               </TooltipTrigger>
                               <TooltipContent className="bg-[#0F172A] text-white border-none rounded-xl p-3 shadow-2xl max-w-[200px]">
@@ -409,15 +404,15 @@ export default function OverviewPage() {
                         </div>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest font-mono">
-                        {stat.displayLabel || stat.label}
+                    <div className="space-y-2 mt-auto">
+                      <div className="text-[10px] font-black uppercase tracking-widest font-mono">
+                        {stat.displayLabel || <span className="text-gray-400 group-hover:text-indigo-600 transition-colors duration-500">{stat.label}</span>}
                       </div>
-                      <p className="text-3xl font-black text-gray-900 tracking-tighter leading-tight font-mono">
+                      <p className={cn("text-4xl font-black tracking-tighter leading-none font-mono transition-colors duration-500", stat.textColor)}>
                         {stat.value}
                       </p>
                       {stat.description && (
-                        <p className="text-[9px] font-bold text-indigo-400 mt-2 leading-tight italic">
+                        <p className="text-[10px] font-bold text-indigo-500 mt-2 leading-tight italic">
                           {stat.description}
                         </p>
                       )}
@@ -536,9 +531,12 @@ export default function OverviewPage() {
                    axisLine={false} 
                    tickLine={false} 
                    tick={{fill: '#475569', fontSize: 10, fontWeight: 800}}
+                   allowDecimals={false}
                    tickFormatter={(value) => {
-                     if (typeof value !== 'number') return 'Rp0';
-                     return isSuperAdmin ? `Rp${(value/1000000).toFixed(1)}M` : `Rp${value/1000}k`;
+                     if (typeof value !== 'number' || value === 0) return 'Rp0';
+                     if (value >= 1000000) return `Rp${(value / 1000000).toFixed(1)}M`;
+                     if (value >= 1000) return `Rp${Math.floor(value / 1000)}k`;
+                     return `Rp${value}`;
                    }}
                    dx={-10}
                 />

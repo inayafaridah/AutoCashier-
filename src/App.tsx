@@ -15,6 +15,7 @@ import OverviewPage from './pages/OverviewPage';
 import InventoryPage from './pages/InventoryPage';
 import AddInventoryPage from './pages/AddInventoryPage';
 import PromoPage from './pages/PromoPage';
+import CreatePromoPage from './pages/CreatePromoPage';
 import UsersPage from './pages/UsersPage';
 import BroadcastPage from './pages/BroadcastPage';
 import AIAnalysisPage from './pages/AIAnalysisPage';
@@ -44,37 +45,47 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Wrapper for role-based access control
+const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: ('super_admin' | 'branch_admin' | 'admin')[] }) => {
+  const { user, isAuthenticated } = useAuth();
+  
+  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  
+  const hasAccess = allowedRoles.includes(user.role);
+  if (!hasAccess) {
+    return <Navigate to="/overview" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       
+      {/* Shared Routes */}
       <Route path="/overview" element={<ProtectedLayout><OverviewPage /></ProtectedLayout>} />
-      
-      <Route path="/catalog" element={<ProtectedLayout><MasterProductsPage /></ProtectedLayout>} />
-
-      <Route path="/master-products" element={<ProtectedLayout><MasterProductsPage /></ProtectedLayout>} />
-
-      <Route path="/add-product" element={<ProtectedLayout><AddProductPage /></ProtectedLayout>} />
-
       <Route path="/monitor" element={<ProtectedLayout><BranchInventoryPage /></ProtectedLayout>} />
-
-      <Route path="/inventory" element={<ProtectedLayout><InventoryPage /></ProtectedLayout>} />
-      <Route path="/inventory/add" element={<ProtectedLayout><AddInventoryPage /></ProtectedLayout>} />
-
-      <Route path="/users" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
-
       <Route path="/promo" element={<ProtectedLayout><PromoPage /></ProtectedLayout>} />
-
-      <Route path="/broadcast" element={<ProtectedLayout><BroadcastPage /></ProtectedLayout>} />
-      
+      <Route path="/promo/create" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
+      <Route path="/promo/edit/:id" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
       <Route path="/inbox" element={<ProtectedLayout><BroadcastInboxPage /></ProtectedLayout>} />
-
-      <Route path="/insights" element={<ProtectedLayout><AIInsightsPage /></ProtectedLayout>} />
-
-      <Route path="/analysis" element={<ProtectedLayout><AIAnalysisPage /></ProtectedLayout>} />
       <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-      <Route path="/settings" element={<ProtectedLayout><UsersPage /></ProtectedLayout>} />
+      
+      {/* Super Admin Only */}
+      <Route path="/catalog" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><MasterProductsPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/master-products" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><MasterProductsPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/add-product" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><AddProductPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/users" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><UsersPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/broadcast" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><BroadcastPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/insights" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><AIInsightsPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/settings" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><UsersPage /></RoleGuard></ProtectedLayout>} />
+
+      {/* Branch Admin Only */}
+      <Route path="/inventory" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><InventoryPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/inventory/add" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><AddInventoryPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/analysis" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><AIAnalysisPage /></RoleGuard></ProtectedLayout>} />
 
       <Route path="/" element={<Navigate to="/overview" replace />} />
     </Routes>

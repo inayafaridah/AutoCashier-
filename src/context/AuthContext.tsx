@@ -4,8 +4,13 @@ import {LocationID} from '@/lib/api';
 interface User {
   username: string;
   roleName: string;
-  role: 'super_admin' | 'branch_admin';
+  role: 'super_admin' | 'branch_admin' | 'admin';
   location_id: LocationID;
+  email?: string;
+  whatsapp?: string;
+  full_name?: string;
+  token?: string;
+  avatar_url?: string;
 }
 
 interface AuthContextType {
@@ -28,6 +33,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
     if (savedUser && authStatus === 'true') {
       try {
         const parsedUser = JSON.parse(savedUser);
+        if (!parsedUser.token) {
+          throw new Error('Invalid session: missing token');
+        }
         setUser(parsedUser);
       } catch (e) {
         localStorage.removeItem('autocashier_user');

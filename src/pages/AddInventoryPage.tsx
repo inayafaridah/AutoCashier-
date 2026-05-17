@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Plus, Loader2, Upload, Trash2, Camera } from 'lucide-react';
+import { ArrowLeft, Package, Plus, Loader2, Upload, Trash2, Camera, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +60,66 @@ export default function AddInventoryPage() {
     back: useRef<HTMLInputElement>(null),
     left: useRef<HTMLInputElement>(null),
     right: useRef<HTMLInputElement>(null),
+  };
+
+  // Camera states
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [activeCameraAngle, setActiveCameraAngle] = useState<AngleKey | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Clean up stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const openCamera = async (angle: AngleKey) => {
+    setActiveCameraAngle(angle);
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      streamRef.current = stream;
+    } catch (err) {
+      toast.error('Gagal membuka kamera: ' + (err as Error).message);
+      setIsCameraOpen(false);
+      setActiveCameraAngle(null);
+    }
+  };
+
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+    setActiveCameraAngle(null);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current && activeCameraAngle) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        canvasRef.current.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `camera_${activeCameraAngle}.jpg`, { type: 'image/jpeg' });
+            setImageFiles(prev => ({ ...prev, [activeCameraAngle]: file }));
+            setImagePreviews(prev => ({ ...prev, [activeCameraAngle]: URL.createObjectURL(blob) }));
+            closeCamera();
+          }
+        }, 'image/jpeg', 0.8);
+      }
+    }
   };
 
   const handleImageSelect = (angle: AngleKey, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,11 +192,45 @@ export default function AddInventoryPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen -m-6 bg-[#F8FAFC] p-6 lg:p-10 font-sans"
-    >
+    <>
+      {/* Camera Modal */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                Ambil Foto {ANGLES.find(a => a.key === activeCameraAngle)?.label}
+              </h3>
+              <Button type="button" variant="ghost" size="icon" onClick={closeCamera} className="rounded-full">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="relative bg-black aspect-[4/3] flex items-center justify-center">
+              <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" />
+            </div>
+            <div className="p-6 flex justify-center bg-gray-50">
+              <Button 
+                type="button"
+                onClick={takePhoto} 
+                className="h-16 w-16 rounded-full bg-indigo-600 hover:bg-indigo-700 p-0 shadow-[0_0_0_4px_rgba(79,70,229,0.2)] flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+              >
+                <Camera className="h-7 w-7 text-white" />
+              </Button>
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+          </motion.div>
+        </div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen -m-6 bg-[#F8FAFC] p-6 lg:p-10 font-sans"
+      >
       <div className="mx-auto max-w-3xl space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -275,11 +369,10 @@ export default function AddInventoryPage() {
                       {label}
                     </Label>
                     <div
-                      onClick={() => !imagePreviews[key] && fileInputRefs[key].current?.click()}
                       className={`relative aspect-square overflow-hidden rounded-2xl border-2 transition-all ${
                         imagePreviews[key]
                           ? 'border-indigo-600 shadow-lg shadow-indigo-600/10'
-                          : 'border-dashed border-gray-200 bg-gray-50 hover:bg-indigo-50/50 hover:border-indigo-300 cursor-pointer'
+                          : 'border-dashed border-gray-200 bg-gray-50 hover:bg-indigo-50/50 hover:border-indigo-300'
                       }`}
                     >
                       {imagePreviews[key] ? (
@@ -305,9 +398,32 @@ export default function AddInventoryPage() {
                           </div>
                         </>
                       ) : (
-                        <div className="flex h-full w-full flex-col items-center justify-center text-gray-400 gap-2 p-3">
-                          <Upload className="h-6 w-6" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-center leading-tight">{label}</span>
+                        <div className="flex h-full w-full flex-col items-center justify-center text-gray-400 gap-3 p-2 relative">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-center leading-tight absolute top-4">{label}</span>
+                          
+                          <div className="flex gap-3 mt-6">
+                            <Button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); fileInputRefs[key].current?.click(); }}
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 rounded-full border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+                              title="Upload File"
+                            >
+                              <Upload className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openCamera(key); }}
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 rounded-full border-gray-200 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+                              title="Buka Kamera"
+                            >
+                              <Camera className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -352,5 +468,6 @@ export default function AddInventoryPage() {
         </Card>
       </div>
     </motion.div>
+    </>
   );
 }

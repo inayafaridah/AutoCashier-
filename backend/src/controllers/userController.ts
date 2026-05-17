@@ -43,3 +43,18 @@ export async function deleteUser(req: Request, res: Response) {
   }
   return res.status(500).json({ status: 'error', message: 'Failed to delete user', error: result.error });
 }
+
+export async function assignMemberPromo(req: Request, res: Response) {
+  const { id } = req.params;
+  const promoData = req.body;
+
+  if (!promoData.code || !promoData.discount_type || !promoData.discount_value) {
+    return res.status(400).json({ status: 'error', message: 'Missing required promo fields' });
+  }
+
+  const result = await userService.assignMemberPromo(id, promoData);
+  if (result.ok) {
+    return res.status(201).json({ status: 'success', data: result.data });
+  }
+  return res.status(500).json({ status: 'error', message: 'Failed to assign promo', error: result.error });
+}

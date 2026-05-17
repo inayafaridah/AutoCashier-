@@ -2,7 +2,7 @@ import {useState, useEffect} from 'react';
 import {Card, CardContent} from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import {Avatar, AvatarFallback, AvatarImage} from '@/components/ui/avatar';
-import {Shield, UserPlus, Search, Edit2, ShieldAlert, CircleCheck, Trash2, Mail, Lock, User, MapPin, Loader2} from 'lucide-react';
+import {Shield, UserPlus, Search, Edit2, ShieldAlert, CircleCheck, Trash2, Mail, Lock, User, MapPin, Loader2, Gift, Tag, Percent, Banknote} from 'lucide-react';
 import {cn} from '@/lib/utils';
 import {
   Select,
@@ -30,6 +30,7 @@ export default function UsersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [newUser, setNewUser] = useState({
@@ -42,6 +43,14 @@ export default function UsersPage() {
 
   const [editingUser, setEditingUser] = useState<any>(null);
   const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [selectedMemberForVoucher, setSelectedMemberForVoucher] = useState<any>(null);
+  const [voucherForm, setVoucherForm] = useState({
+    code: '',
+    discount_type: 'percent',
+    discount_value: '',
+    min_purchase: ''
+  });
+  
   const [users, setUsers] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
 
@@ -101,7 +110,7 @@ export default function UsersPage() {
     }
 
     try {
-      const res = await fetchBackend('updateUser', editingUser, { id: editingUser.id });
+      const res = await fetchBackend('updateUser', editingUser);
       if (res.status === 'success') {
         toast.success('Identity updated successfully');
         setIsEditModalOpen(false);
@@ -117,13 +126,40 @@ export default function UsersPage() {
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     try {
-      const res = await fetchBackend('deleteUser', {}, { id: userToDelete.id });
+      const res = await fetchBackend('deleteUser', { id: userToDelete.id });
       if (res.status === 'success') {
         toast.success(`Identity for ${userToDelete.name} revoked`);
         setIsDeleteModalOpen(false);
         loadData();
       } else {
         toast.error(res.message || 'Failed to revoke identity');
+      }
+    } catch (err) {
+      toast.error('Network connection error');
+    }
+  };
+
+  const handleAssignVoucher = async () => {
+    if (!voucherForm.code || !voucherForm.discount_value) {
+      toast.error('Code and Discount Value are required');
+      return;
+    }
+
+    try {
+      const res = await fetchBackend('assignMemberPromo', {
+        userId: selectedMemberForVoucher.id,
+        code: voucherForm.code.toUpperCase(),
+        discount_type: voucherForm.discount_type,
+        discount_value: Number(voucherForm.discount_value),
+        min_purchase: Number(voucherForm.min_purchase) || 0
+      });
+
+      if (res.status === 'success') {
+        toast.success(`Voucher sent to ${selectedMemberForVoucher.name}`);
+        setIsVoucherModalOpen(false);
+        setVoucherForm({ code: '', discount_type: 'percent', discount_value: '', min_purchase: '' });
+      } else {
+        toast.error(res.message || 'Failed to assign voucher');
       }
     } catch (err) {
       toast.error('Network connection error');
@@ -315,6 +351,7 @@ export default function UsersPage() {
                         <th className="py-6 pl-10">Identity</th>
                         <th className="py-6">Role Type</th>
                         <th className="py-6">Auth Status</th>
+                        <th className="py-6">Member Points</th>
                         <th className="py-6 text-right pr-10">Actions</th>
                      </tr>
                   </thead>
@@ -365,8 +402,36 @@ export default function UsersPage() {
                                  </span>
                               </div>
                            </td>
+                           <td className="py-8">
+                              {user.role === 'Member' ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="bg-amber-50 text-amber-600 p-1.5 rounded-lg shadow-sm">
+                                    <Tag className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="font-mono font-black text-amber-600 text-sm">
+                                    {user.points || 0} Pts
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300 text-xs font-bold">-</span>
+                              )}
+                           </td>
                            <td className="py-8 text-right pr-10">
                               <div className="flex items-center justify-end gap-2 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                                 {user.role === 'Member' && (
+                                    <Button 
+                                      onClick={() => {
+                                        setSelectedMemberForVoucher(user);
+                                        setIsVoucherModalOpen(true);
+                                      }}
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="rounded-2xl text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 h-11 w-11 shadow-sm"
+                                      title="Give Voucher"
+                                    >
+                                      <Gift className="w-4.5 h-4.5" />
+                                    </Button>
+                                 )}
                                  <Button 
                                     onClick={() => {
                                       setEditingUser({...user});
@@ -394,7 +459,7 @@ export default function UsersPage() {
                         </tr>
                      )) : (
                        <tr>
-                         <td colSpan={4} className="py-20 text-center">
+                         <td colSpan={5} className="py-20 text-center">
                            <div className="flex flex-col items-center gap-3">
                              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
                                <Search className="w-8 h-8 text-gray-300" />
@@ -524,6 +589,89 @@ export default function UsersPage() {
               className="bg-rose-600 hover:bg-rose-700 h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] flex-1 text-white shadow-lg shadow-rose-100 transition-all hover:scale-[1.02]"
             >
               Revoke Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Give Voucher Modal */}
+      <Dialog open={isVoucherModalOpen} onOpenChange={setIsVoucherModalOpen}>
+        <DialogContent className="rounded-[32px] sm:max-w-[480px] p-8 border-none shadow-2xl bg-white">
+          <DialogHeader className="space-y-2">
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-2">
+              <Gift className="w-6 h-6 text-emerald-600" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Send Voucher</DialogTitle>
+            <DialogDescription className="text-sm text-gray-500 font-medium">
+              Gift a special promo code directly to <span className="text-gray-900 font-bold">{selectedMemberForVoucher?.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-6 font-sans">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Voucher Code</label>
+              <div className="relative">
+                <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input 
+                  placeholder="e.g. VIP50" 
+                  value={voucherForm.code}
+                  onChange={(e) => setVoucherForm({...voucherForm, code: e.target.value.toUpperCase()})}
+                  className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-mono font-bold uppercase" 
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Discount Type</label>
+                <div className="flex bg-gray-50 p-1 border border-gray-100 rounded-2xl h-14">
+                  <button 
+                    onClick={() => setVoucherForm({...voucherForm, discount_type: 'percent'})}
+                    className={cn("flex-1 flex items-center justify-center gap-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", voucherForm.discount_type === 'percent' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400")}
+                  >
+                    <Percent className="w-3 h-3" /> %
+                  </button>
+                  <button 
+                    onClick={() => setVoucherForm({...voucherForm, discount_type: 'fixed'})}
+                    className={cn("flex-1 flex items-center justify-center gap-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", voucherForm.discount_type === 'fixed' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400")}
+                  >
+                    <Banknote className="w-3 h-3" /> Rp
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Discount Value</label>
+                <Input 
+                  type="number"
+                  placeholder={voucherForm.discount_type === 'percent' ? "10" : "15000"} 
+                  value={voucherForm.discount_value}
+                  onChange={(e) => setVoucherForm({...voucherForm, discount_value: e.target.value})}
+                  className="bg-gray-50 border-gray-100 rounded-2xl h-14 px-4 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-bold" 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Min. Purchase (Optional)</label>
+              <Input 
+                type="number"
+                placeholder="0" 
+                value={voucherForm.min_purchase}
+                onChange={(e) => setVoucherForm({...voucherForm, min_purchase: e.target.value})}
+                className="bg-gray-50 border-gray-100 rounded-2xl h-14 px-4 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-bold" 
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4 font-sans">
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsVoucherModalOpen(false)}
+              className="h-14 rounded-2xl font-bold flex-1 text-gray-500 hover:bg-gray-50"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAssignVoucher}
+              className="bg-emerald-600 hover:bg-emerald-700 h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] flex-1 text-white shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02]"
+            >
+              Send Voucher
             </Button>
           </DialogFooter>
         </DialogContent>

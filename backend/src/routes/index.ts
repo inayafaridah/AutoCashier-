@@ -3,6 +3,7 @@ import healthController from '../controllers/healthController';
 import authRoutes from './auth';
 import productsRoutes from './products';
 import debugRoutes from './debug';
+import profileRoutes from './profile';
 
 import overviewRoutes from './overview';
 import promoRoutes from './promos';
@@ -23,6 +24,8 @@ router.use('/products', productsRoutes);
 
 router.use('/debug', debugRoutes);
 
+router.use('/profile', profileRoutes);
+
 
 
 router.use('/overview', overviewRoutes);
@@ -37,6 +40,7 @@ router.get('/users', userController.getUsers);
 router.post('/users', userController.createUser);
 router.patch('/users/:id', userController.updateUser);
 router.delete('/users/:id', userController.deleteUser);
+router.post('/users/:id/promos', userController.assignMemberPromo);
 
 // Branch Inventory
 router.get('/branches', branchController.getBranches);

@@ -2,21 +2,7 @@ import { supabaseAdmin, supabase } from '../config/supabaseClient';
 
 const client = () => supabaseAdmin || supabase;
 
-// Generate chart data labels
-function generateChartLabels(timeframe: string, year: string, month: string) {
-  if (timeframe === 'weekly') {
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  }
-  if (timeframe === 'monthly') {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    const monthIdx = months.indexOf(month);
-    const days = new Date(Number(year), monthIdx + 1, 0).getDate();
-    return Array.from({ length: days }, (_, i) => `${i + 1}`);
-  }
-  // yearly
-  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-}
+// Removed old generateChartLabels as it will be handled inside getOverviewData
 
 export async function getOverviewData(params: {
   location_id?: string;
@@ -32,43 +18,58 @@ export async function getOverviewData(params: {
     const db = client();
 
     // ── 1. Date ranges ──────────────────────────────────────────────
-    const now = new Date();
-    let currentStart = new Date();
-    let previousStart = new Date();
+    const yearNum = Number(year) || new Date().getFullYear();
+    const monthsList = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthIdx = monthsList.indexOf(month) !== -1 ? monthsList.indexOf(month) : new Date().getMonth();
 
-    if (timeframe === 'weekly') {
-      currentStart.setDate(now.getDate() - 7);
-      previousStart.setDate(now.getDate() - 14);
+    let currentStart: Date;
+    let currentEnd: Date;
+    let previousStart: Date;
+    let previousEnd: Date;
+
+    if (timeframe === 'yearly') {
+      currentStart = new Date(yearNum, 0, 1);
+      currentEnd = new Date(yearNum, 11, 31, 23, 59, 59);
+      previousStart = new Date(yearNum - 1, 0, 1);
+      previousEnd = new Date(yearNum - 1, 11, 31, 23, 59, 59);
     } else if (timeframe === 'monthly') {
-      currentStart.setMonth(now.getMonth() - 1);
-      previousStart.setMonth(now.getMonth() - 2);
+      currentStart = new Date(yearNum, monthIdx, 1);
+      currentEnd = new Date(yearNum, monthIdx + 1, 0, 23, 59, 59);
+      previousStart = new Date(yearNum, monthIdx - 1, 1);
+      previousEnd = new Date(yearNum, monthIdx, 0, 23, 59, 59);
     } else {
-      currentStart.setFullYear(now.getFullYear() - 1);
-      previousStart.setFullYear(now.getFullYear() - 2);
+      // weekly - last 7 days
+      currentEnd = new Date();
+      currentStart = new Date();
+      currentStart.setDate(currentEnd.getDate() - 6);
+      currentStart.setHours(0,0,0,0);
+      
+      previousEnd = new Date(currentStart);
+      previousEnd.setMilliseconds(-1);
+      previousStart = new Date(previousEnd);
+      previousStart.setDate(previousEnd.getDate() - 6);
+      previousStart.setHours(0,0,0,0);
     }
 
     // ── 2. Revenue — filtered by branch if needed ──────────────────
+    // transactions table has no branch_id; filter all branches uniformly
     let currQuery = db
       .from('transactions')
-      .select('total_amount')
-      .gte('created_at', currentStart.toISOString());
+      .select('total_price, created_at')
+      .gte('created_at', currentStart.toISOString())
+      .lte('created_at', currentEnd.toISOString());
 
     let prevQuery = db
       .from('transactions')
-      .select('total_amount')
-      .lt('created_at', currentStart.toISOString())
-      .gte('created_at', previousStart.toISOString());
-
-    if (isBranchFilter) {
-      currQuery = currQuery.eq('branch_id', location_id);
-      prevQuery = prevQuery.eq('branch_id', location_id);
-    }
+      .select('total_price, created_at')
+      .gte('created_at', previousStart.toISOString())
+      .lte('created_at', previousEnd.toISOString());
 
     const { data: currData } = await currQuery;
     const { data: prevData } = await prevQuery;
 
-    const currentRevenue = currData?.reduce((acc, t) => acc + Number(t.total_amount), 0) ?? 0;
-    const previousRevenue = prevData?.reduce((acc, t) => acc + Number(t.total_amount), 0) ?? 0;
+    const currentRevenue = currData?.reduce((acc, t) => acc + Number(t.total_price), 0) ?? 0;
+    const previousRevenue = prevData?.reduce((acc, t) => acc + Number(t.total_price), 0) ?? 0;
 
     let revenueChange = 0;
     if (previousRevenue > 0) {
@@ -78,10 +79,9 @@ export async function getOverviewData(params: {
     }
 
     // ── 3. Total Transactions ──────────────────────────────────────
-    let salesCountQuery = db
+    const salesCountQuery = db
       .from('transactions')
       .select('*', { count: 'exact', head: true });
-    if (isBranchFilter) salesCountQuery = salesCountQuery.eq('branch_id', location_id);
     const { count: totalSales } = await salesCountQuery;
 
     // ── 4. Products / Inventory Stats ─────────────────────────────
@@ -93,19 +93,19 @@ export async function getOverviewData(params: {
     let validatedCount = 0;
 
     if (isBranchFilter) {
-      // Use branch_inventory for branch-specific data
+      // Use branch_inventory for branch-specific data (uses `stock` column)
       const { data: branchStock } = await db
         .from('branch_inventory')
-        .select('quantity, products(price, ai_label)')
+        .select('stock, products(price, ai_label)')
         .eq('branch_id', location_id);
 
       totalProducts = branchStock?.length ?? 0;
-      totalStock = branchStock?.reduce((acc, item) => acc + (item.quantity ?? 0), 0) ?? 0;
+      totalStock = branchStock?.reduce((acc, item) => acc + (item.stock ?? 0), 0) ?? 0;
       inventoryValue = branchStock?.reduce((acc, item) => {
         const price = (item.products as any)?.price ?? 0;
-        return acc + ((item.quantity ?? 0) * price);
+        return acc + ((item.stock ?? 0) * price);
       }, 0) ?? 0;
-      lowStockCount = branchStock?.filter(item => (item.quantity ?? 0) < 10).length ?? 0;
+      lowStockCount = branchStock?.filter(item => (item.stock ?? 0) < 10).length ?? 0;
       validatedCount = branchStock?.filter(item => (item.products as any)?.ai_label != null).length ?? 0;
     } else {
       // All branches — use master products table
@@ -130,31 +130,62 @@ export async function getOverviewData(params: {
       .from('branches')
       .select('*', { count: 'exact', head: true });
 
-    // ── 6. Promo count ────────────────────────────────────────────
-    let promoQuery = db.from('promos').select('*', { count: 'exact', head: true });
-    if (isBranchFilter) promoQuery = promoQuery.eq('branch_id', location_id);
-    const { count: promoCount } = await promoQuery;
+    // ── 6. Promo count (table is member_promos) ───────────────────
+    const { count: promoCount } = await db
+      .from('member_promos')
+      .select('*', { count: 'exact', head: true });
 
     // ── 7. Chart Data ─────────────────────────────────────────────
-    const labels = generateChartLabels(timeframe, year, month);
-    const chartData = labels.map((name) => {
-      const dayFactor = 0.5 + Math.random();
-      return {
-        name,
-        total: Math.round((currentRevenue / labels.length) * dayFactor)
-      };
+    let labels: string[] = [];
+    if (timeframe === 'yearly') {
+      labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    } else if (timeframe === 'monthly') {
+      const daysInMonth = new Date(yearNum, monthIdx + 1, 0).getDate();
+      labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}`);
+    } else {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(currentEnd);
+        d.setDate(d.getDate() - i);
+        labels.push(days[d.getDay()]);
+      }
+    }
+
+    const chartMap = new Map<string, number>();
+    labels.forEach(l => chartMap.set(l, 0));
+
+    currData?.forEach(t => {
+      const d = new Date(t.created_at);
+      let label = '';
+      if (timeframe === 'yearly') {
+        label = monthsList[d.getMonth()].substring(0, 3);
+      } else if (timeframe === 'monthly') {
+        label = d.getDate().toString();
+      } else {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        label = days[d.getDay()];
+      }
+      
+      if (chartMap.has(label)) {
+        chartMap.set(label, chartMap.get(label)! + Number(t.total_price));
+      }
     });
+
+    const chartData = labels.map(name => ({
+      name,
+      total: chartMap.get(name) || 0
+    }));
 
     // ── 8. Latest products ────────────────────────────────────────
     let latestProducts: any[] = [];
     if (isBranchFilter) {
       const { data: branchLatest } = await db
         .from('branch_inventory')
-        .select('quantity, products(id, name, sku, price, ai_label, category, image_url, created_at)')
+        .select('stock, products(id, name, sku, price, ai_label, category, image_url, created_at)')
         .eq('branch_id', location_id)
-        .order('updated_at', { ascending: false })
+        .order('last_updated', { ascending: false })
         .limit(5);
-      latestProducts = branchLatest?.map(item => ({ ...(item.products as any), stock: item.quantity })) ?? [];
+      latestProducts = branchLatest?.map(item => ({ ...(item.products as any), stock: item.stock })) ?? [];
     } else {
       const { data: latest } = await db
         .from('products')

@@ -12,7 +12,11 @@ export async function getAllUsers() {
         full_name,
         email,
         role,
-        username
+        username,
+        avatar_url,
+        member_points (
+          balance
+        )
       `)
       .order('full_name');
 
@@ -20,13 +24,17 @@ export async function getAllUsers() {
     
     return { 
       ok: true, 
-      data: (data || []).map(u => ({
+      data: (data || []).map((u: any) => ({
         id: u.id,
         name: u.full_name || u.username,
+        full_name: u.full_name,
+        username: u.username,
+        profile_picture: u.avatar_url,
         email: u.email,
         role: u.role === 'super_admin' ? 'Super Admin' : (u.role === 'branch_admin' ? 'Branch Admin' : u.role),
         location: 'All Branches', // Simplified for now
-        status: 'Active'
+        status: 'Active',
+        points: u.member_points ? (Array.isArray(u.member_points) ? (u.member_points[0]?.balance || 0) : (u.member_points.balance || 0)) : 0
       }))
     };
   } catch (err) {
@@ -96,6 +104,31 @@ export async function deleteUser(userId: string) {
     return { ok: true };
   } catch (err) {
     console.error('[userService] ❌ Error deleting user:', err);
+    return { ok: false, error: err };
+  }
+}
+
+export async function assignMemberPromo(userId: string, promoData: any) {
+  try {
+    const db = supabaseAdmin || supabase;
+    const { data, error } = await db
+      .from('member_promos')
+      .insert([{
+        user_id: userId,
+        code: promoData.code,
+        discount_type: promoData.discount_type,
+        discount_value: promoData.discount_value,
+        min_purchase: promoData.min_purchase || 0,
+        expires_at: promoData.expires_at || null,
+        is_used: false
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { ok: true, data };
+  } catch (err) {
+    console.error('[userService] ❌ Error assigning member promo:', err);
     return { ok: false, error: err };
   }
 }

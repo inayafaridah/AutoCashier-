@@ -1,6 +1,7 @@
 import React from 'react';
 import { Globe, MapPin, Check, ChevronDown } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
+import { useAuth } from '@/context/AuthContext';
 import { MOCK_LOCATIONS, LocationID } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
@@ -14,26 +15,31 @@ import { buttonVariants } from '@/components/ui/button';
 
 export function BranchSelector() {
   const { currentLocation, setCurrentLocation, locationName, allBranches } = useLocation();
+  const { user } = useAuth();
+  
+  const isSuperAdmin = user?.role === 'super_admin';
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "flex items-center gap-2 px-4 h-14 bg-white border-gray-100 rounded-2xl shadow-sm hover:border-indigo-100 transition-all group outline-none min-w-[220px] justify-between")}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 shrink-0 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                {currentLocation === 'ALL' ? (
-                  <Globe className="w-4 h-4 transition-colors" />
-                ) : (
-                  <MapPin className="w-4 h-4 transition-colors" />
-                )}
-            </div>
-            <div className="flex flex-col items-start">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Branch Selector</span>
-                <span className="text-xs font-bold text-gray-900 truncate max-w-[120px]">
-                  {locationName}
-                </span>
-            </div>
+      <DropdownMenuTrigger 
+        disabled={!isSuperAdmin}
+        className={cn(
+          "flex items-center gap-2 px-6 py-3 bg-indigo-50/80 border-none rounded-full transition-colors group outline-none w-full sm:w-auto justify-between sm:justify-start",
+          isSuperAdmin ? "hover:bg-indigo-100/80 cursor-pointer" : "cursor-default opacity-90"
+        )}
+      >
+          <div className="flex items-center gap-2">
+            {currentLocation === 'ALL' ? (
+              <Globe className="w-4 h-4 text-indigo-600" />
+            ) : (
+              <MapPin className="w-4 h-4 text-indigo-600" />
+            )}
+            <span className="text-xs font-bold text-indigo-700">{locationName}</span>
+            <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest ml-1 hidden sm:inline">
+              {currentLocation === 'ALL' ? 'CONSOLIDATED' : 'YOUR BRANCH'}
+            </span>
           </div>
-          <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-indigo-600 transition-colors" />
+          <ChevronDown className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 transition-colors sm:ml-1" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 bg-white border-gray-100 shadow-2xl">
         <DropdownMenuLabel className="font-bold text-gray-900 border-b border-gray-50 pb-2 mb-2 px-3">Select Operation Unit</DropdownMenuLabel>

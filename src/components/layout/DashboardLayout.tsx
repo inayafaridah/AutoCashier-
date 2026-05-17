@@ -14,6 +14,7 @@ import {
   User,
   Bell,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   MapPin,
   Globe,
@@ -80,7 +81,19 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
   const activePageLabel = [...SUPER_ADMIN_NAV, ...BRANCH_ADMIN_NAV].find(n => n.path === routeLocation.pathname)?.label || 'Dashboard';
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex font-sans selection:bg-indigo-100">
+    <div className="min-h-screen bg-[#F1F5F9] flex font-sans selection:bg-indigo-100 relative">
+      
+      {/* Floating Sidebar Toggle Button (Desktop) */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className={cn(
+          "hidden lg:flex absolute top-24 z-[60] items-center justify-center w-8 h-8 rounded-full bg-indigo-600 text-white shadow-[0_4px_12px_rgba(79,70,229,0.4)] hover:bg-indigo-700 transition-all duration-500 ease-in-out hover:scale-110",
+          isSidebarOpen ? "left-[244px]" : "left-[56px]"
+        )}
+      >
+        {isSidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+
       {/* Sidebar... */}
       <aside 
         className={cn(
@@ -93,18 +106,18 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
           <div className="flex items-center justify-between mb-10 sticky top-0 bg-[#0F172A] z-10 py-2">
             {isSidebarOpen ? (
               <div className="flex items-center gap-3 pl-1 min-w-0">
-                <div className="w-12 h-12 rounded-xl overflow-hidden shadow-lg shadow-indigo-500/20 flex-shrink-0 hover:scale-105 transition-transform cursor-pointer">
-                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-cover" />
+                <div className="w-12 h-12 shadow-lg shadow-indigo-500/20 flex-shrink-0 hover:scale-105 transition-transform cursor-pointer rounded-xl">
+                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-contain rounded-md" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-lg font-black tracking-tighter uppercase italic leading-none truncate">AutoCashier</span>
-                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mt-0.5">Enterprise UI</span>
+                  <span className="text-[17px] font-black tracking-tighter uppercase italic leading-none truncate">AutoCashier</span>
+                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mt-0.5">Scan & Pay</span>
                 </div>
               </div>
             ) : (
               <div className="w-full flex justify-center">
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-indigo-500/20 hover:scale-110 transition-transform cursor-pointer">
-                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-cover" />
+                <div className="w-10 h-10 shadow-lg shadow-indigo-500/20 hover:scale-110 transition-transform cursor-pointer rounded-xl">
+                  <img src={foto2} alt="AutoCashier Logo" className="w-full h-full object-contain rounded-md" />
                 </div>
               </div>
             )}
@@ -114,7 +127,7 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="hover:bg-white/10 text-white/40 lg:hidden flex-shrink-0"
             >
-              <X className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             </Button>
           </div>
 
@@ -194,9 +207,9 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
           <div className="flex items-center gap-6">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/30 transition-all active:scale-90 hover:scale-105 flex-shrink-0"
+              className="w-10 h-10 lg:hidden flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/30 transition-all active:scale-90 hover:scale-105 flex-shrink-0"
             >
-              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              <Menu className="w-5 h-5" />
             </button>
             <div className="flex flex-col">
               <h1 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
@@ -253,7 +266,7 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
                   className="rounded-2xl gap-3 pl-2 pr-4 hover:bg-gray-50 border border-transparent hover:border-gray-100 h-14"
                 >
                    <Avatar className="w-10 h-10 rounded-xl relative">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
+                      <AvatarImage src={user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
                       <AvatarFallback className="bg-indigo-600 text-white rounded-xl text-xs">{user?.username?.[0]}</AvatarFallback>
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white" />
                    </Avatar>

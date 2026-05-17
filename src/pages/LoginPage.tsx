@@ -32,6 +32,11 @@ export default function LoginPage() {
           role: response.data.role,
           roleName: response.data.role === 'super_admin' ? 'Super Admin' : 'Branch Manager',
           location_id: response.data.location_id,
+          token: response.data.token,
+          email: response.data.email,
+          whatsapp: response.data.whatsapp,
+          full_name: response.data.full_name,
+          avatar_url: response.data.avatar_url,
         });
         // Success redirect
         localStorage.setItem('isAuthenticated', 'true');
@@ -46,6 +51,7 @@ export default function LoginPage() {
           role: 'super_admin',
           roleName: 'Super Admin',
           location_id: 'ALL',
+          token: 'dummy-token',
         });
         localStorage.setItem('isAuthenticated', 'true');
         navigate('/overview');
