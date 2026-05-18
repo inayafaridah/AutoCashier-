@@ -36,6 +36,20 @@ export function AuthProvider({children}: {children: ReactNode}) {
         if (!parsedUser.token) {
           throw new Error('Invalid session: missing token');
         }
+        // Decode token to check if branch_id is included (new format)
+        // If it's a branch_admin token missing branch_id, force re-login
+        try {
+          const payloadB64 = parsedUser.token.split('.')[1];
+          if (payloadB64) {
+            const payload = JSON.parse(atob(payloadB64));
+            if (parsedUser.role === 'branch_admin' && !payload.branch_id) {
+              throw new Error('Session outdated: missing branch_id. Please log in again.');
+            }
+          }
+        } catch (tokenErr: any) {
+          if (tokenErr.message.includes('branch_id')) throw tokenErr;
+          // Ignore other decode errors
+        }
         setUser(parsedUser);
       } catch (e) {
         localStorage.removeItem('autocashier_user');

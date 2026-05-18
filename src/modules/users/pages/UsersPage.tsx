@@ -23,8 +23,12 @@ import {
 import {Input} from '@/shared/components/ui/input';
 import {toast} from 'sonner';
 import {fetchBackend, BACKEND_URL} from '@/shared/lib/api';
+import {useAuth} from '@/shared/context/AuthContext';
 
 export default function UsersPage() {
+  const {user} = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+
   const getAvatarUrl = (user: any) => {
     const avatarStr = user?.profile_picture || user?.avatar_url;
     if (!avatarStr || avatarStr === 'null' || avatarStr === '') {
@@ -34,7 +38,7 @@ export default function UsersPage() {
     return `${BACKEND_URL}${avatarStr}`;
   };
 
-  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState(isSuperAdmin ? 'ALL' : 'Member');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -199,8 +203,12 @@ export default function UsersPage() {
             <Users2 className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tighter">Identity & Access</h2>
-            <p className="text-gray-500 font-medium text-sm mt-0.5">Govern system privileges, roles, and network identities</p>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tighter">
+              {isSuperAdmin ? 'Identity & Access' : 'Member Management'}
+            </h2>
+            <p className="text-gray-500 font-medium text-sm mt-0.5">
+              {isSuperAdmin ? 'Govern system privileges, roles, and network identities' : 'Manage your branch members, loyalty points, and vouchers'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -245,55 +253,82 @@ export default function UsersPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assign Role</label>
-                  <Select value={newUser.role} onValueChange={(val) => setNewUser({...newUser, role: val})}>
-                    <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 px-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
-                      <SelectValue placeholder="Select Role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
-                      <SelectItem value="Super Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Super Admin</SelectItem>
-                      <SelectItem value="Branch Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Branch Admin</SelectItem>
-                      <SelectItem value="Member" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Initial Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input 
-                      type="password"
-                      placeholder="••••••••" 
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                      className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-medium" 
-                    />
+              {isSuperAdmin ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assign Role</label>
+                      <Select value={newUser.role} onValueChange={(val) => setNewUser({...newUser, role: val})}>
+                        <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 px-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
+                          <SelectItem value="Super Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Super Admin</SelectItem>
+                          <SelectItem value="Branch Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Branch Admin</SelectItem>
+                          <SelectItem value="Member" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">Member</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Initial Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input 
+                          type="password"
+                          placeholder="••••••••" 
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                          className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-medium" 
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {newUser.role === 'Branch Admin' && (
-                <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assign Location</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-                    <Select 
-                      value={newUser.branchId} 
-                      onValueChange={(val) => setNewUser({...newUser, branchId: val})}
-                    >
-                      <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 pr-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
-                        <SelectValue placeholder="Select Branch" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
-                        {branches.map(loc => (
-                          <SelectItem key={loc.id} value={loc.id} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">
-                            {loc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {newUser.role === 'Branch Admin' && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assign Location</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                        <Select 
+                          value={newUser.branchId} 
+                          onValueChange={(val) => setNewUser({...newUser, branchId: val})}
+                        >
+                          <SelectTrigger className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 pr-4 font-medium transition-all focus:ring-4 focus:ring-indigo-100 ring-offset-0">
+                            <SelectValue placeholder="Select Branch" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2 font-sans">
+                            {branches.map(loc => (
+                              <SelectItem key={loc.id} value={loc.id} className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer">
+                                {loc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">User Role</label>
+                    <div className="px-5 py-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                      <span className="text-sm font-bold text-gray-900">Member</span>
+                      <Users2 className="w-4 h-4 text-indigo-600" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Initial Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input 
+                        type="password"
+                        placeholder="••••••••" 
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                        className="bg-gray-50 border-gray-100 rounded-2xl h-14 pl-12 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all font-medium" 
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -320,20 +355,39 @@ export default function UsersPage() {
 
       {/* ── STAT MINI CARDS ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Super Admin', value: superAdminCount, icon: Shield, iconBg: 'bg-indigo-50 text-indigo-600' },
-          { label: 'Branch Admin', value: branchAdminCount, icon: ShieldAlert, iconBg: 'bg-amber-50 text-amber-600' },
-          { label: 'Member', value: memberCount, icon: Users2, iconBg: 'bg-violet-50 text-violet-600' },
-          { label: 'Pengguna Aktif', value: activeCount, icon: CircleCheck, iconBg: 'bg-emerald-50 text-emerald-600' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-            <div className={cn('p-3 rounded-xl flex-shrink-0', s.iconBg)}><s.icon className="w-5 h-5" /></div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">{s.label}</p>
-              <p className="text-2xl font-black text-gray-900 tracking-tight font-mono">{s.value.toString().padStart(2, '0')}</p>
+        {isSuperAdmin ? (
+          [
+            { label: 'Super Admin', value: superAdminCount, icon: Shield, iconBg: 'bg-indigo-50 text-indigo-600' },
+            { label: 'Branch Admin', value: branchAdminCount, icon: ShieldAlert, iconBg: 'bg-amber-50 text-amber-600' },
+            { label: 'Member', value: memberCount, icon: Users2, iconBg: 'bg-violet-50 text-violet-600' },
+            { label: 'Pengguna Aktif', value: activeCount, icon: CircleCheck, iconBg: 'bg-emerald-50 text-emerald-600' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className={cn('p-3 rounded-xl flex-shrink-0', s.iconBg)}><s.icon className="w-5 h-5" /></div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">{s.label}</p>
+                <p className="text-2xl font-black text-gray-900 tracking-tight font-mono">{s.value.toString().padStart(2, '0')}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          [
+            { label: 'Total Member', value: memberCount, icon: Users2, iconBg: 'bg-violet-50 text-violet-600' },
+            { label: 'Member Aktif', value: users.filter(u => u.role === 'Member' && u.status === 'Active').length, icon: CircleCheck, iconBg: 'bg-emerald-50 text-emerald-600' },
+            { label: 'Total Poin Member', value: users.filter(u => u.role === 'Member').reduce((sum, u) => sum + (u.points || 0), 0), icon: Tag, iconBg: 'bg-amber-50 text-amber-600', isMono: true },
+            { label: 'Status Server', value: 'ONLINE', icon: Shield, iconBg: 'bg-emerald-50 text-emerald-600', isText: true },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+              <div className={cn('p-3 rounded-xl flex-shrink-0', s.iconBg)}><s.icon className="w-5 h-5" /></div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">{s.label}</p>
+                <p className={cn("text-2xl font-black tracking-tight", s.isMono ? "font-mono text-amber-600" : "text-gray-900", s.isText ? "text-sm text-emerald-600" : "")}>
+                  {s.isText ? s.value : (s.isMono ? s.value.toLocaleString() : s.value.toString().padStart(2, '0'))}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -348,17 +402,19 @@ export default function UsersPage() {
             className="w-full pl-11 pr-4 h-11 bg-white border border-gray-100 rounded-xl text-sm font-medium placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all outline-none shadow-sm"
           />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-full sm:w-48 bg-white border border-gray-100 rounded-xl h-11 px-4 shadow-sm font-bold text-xs transition-all hover:bg-gray-50">
-            <SelectValue placeholder="Semua Role" />
-          </SelectTrigger>
-          <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2">
-            <SelectItem value="ALL" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Semua Role</SelectItem>
-            <SelectItem value="Super Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Super Admin</SelectItem>
-            <SelectItem value="Branch Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Branch Admin</SelectItem>
-            <SelectItem value="Member" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Member</SelectItem>
-          </SelectContent>
-        </Select>
+        {isSuperAdmin && (
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-full sm:w-48 bg-white border border-gray-100 rounded-xl h-11 px-4 shadow-sm font-bold text-xs transition-all hover:bg-gray-50">
+              <SelectValue placeholder="Semua Role" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border-gray-100 rounded-2xl shadow-xl p-2">
+              <SelectItem value="ALL" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Semua Role</SelectItem>
+              <SelectItem value="Super Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Super Admin</SelectItem>
+              <SelectItem value="Branch Admin" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Branch Admin</SelectItem>
+              <SelectItem value="Member" className="rounded-xl p-3 focus:bg-indigo-50 cursor-pointer text-xs font-bold">Member</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* ── TABLE CARD ── */}
@@ -460,6 +516,19 @@ export default function UsersPage() {
                            </td>
                             <td className="py-4 text-right pr-6">
                                <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-all duration-200">
+                                 {user.role === 'Member' && (
+                                   <Button 
+                                      onClick={() => {
+                                        setSelectedMemberForVoucher(user);
+                                        setIsVoucherModalOpen(true);
+                                      }}
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="bg-white hover:bg-emerald-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-emerald-600 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(16,185,129,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center animate-in zoom-in-50 duration-300"
+                                    >
+                                      <Gift className="w-5 h-5" strokeWidth={2.5} />
+                                   </Button>
+                                 )}
                                  <Button 
                                     onClick={() => {
                                       setEditingUser({...user});
@@ -480,8 +549,8 @@ export default function UsersPage() {
                                   >
                                     <Trash2 className="w-5 h-5" strokeWidth={2.5} />
                                  </button>
-                              </div>
-                           </td>
+                               </div>
+                            </td>
                         </tr>
                      )) : (
                        <tr>

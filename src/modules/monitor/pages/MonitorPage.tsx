@@ -20,6 +20,7 @@ import {
 } from '@/shared/components/ui/select';
 import { toast } from 'sonner';
 import BranchInventoryPage from '@/modules/inventory/pages/BranchInventoryPage';
+import { supabase } from '@/shared/lib/supabase';
 
 function formatRp(val: number) {
   return 'Rp ' + val.toLocaleString('id-ID');
@@ -62,6 +63,22 @@ export default function MonitorPage() {
 
   useEffect(() => {
     loadData();
+
+    // Set up Real-time Subscription for Transactions
+    const channel = supabase.channel('realtime-monitor')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        console.log('Real-time update: transactions changed');
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_items' }, () => {
+        console.log('Real-time update: transaction_items changed');
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentLocation, timeframe]);
 
   // Filtered products list for search

@@ -11,7 +11,16 @@ export async function getOverviewData(params: {
   month?: string;
   week?: string;
 }) {
-  const { location_id = 'ALL', timeframe = 'weekly', year = '2026', month = 'April' } = params;
+  const monthsList = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const currentYearStr = new Date().getFullYear().toString();
+  const currentMonthStr = monthsList[new Date().getMonth()];
+
+  const { 
+    location_id = 'ALL', 
+    timeframe = 'weekly', 
+    year = currentYearStr, 
+    month = currentMonthStr 
+  } = params;
   const isBranchFilter = location_id && location_id !== 'ALL';
 
   try {
@@ -52,10 +61,24 @@ export async function getOverviewData(params: {
     }
 
     // ── 2. Revenue — filtered by branch if needed ──────────────────
-    // transactions table has no branch_id; filter all branches uniformly
     let currQuery = db
       .from('transactions')
-      .select('total_price, created_at')
+      .select(`
+        total_price,
+        created_at,
+        transaction_items (
+          quantity,
+          subtotal,
+          product_id,
+          products (
+            id,
+            name,
+            sku,
+            category,
+            price
+          )
+        )
+      `)
       .gte('created_at', currentStart.toISOString())
       .lte('created_at', currentEnd.toISOString());
 
@@ -64,6 +87,11 @@ export async function getOverviewData(params: {
       .select('total_price, created_at')
       .gte('created_at', previousStart.toISOString())
       .lte('created_at', previousEnd.toISOString());
+
+    if (isBranchFilter) {
+      currQuery = currQuery.eq('branch_id', location_id);
+      prevQuery = prevQuery.eq('branch_id', location_id);
+    }
 
     const { data: currData } = await currQuery;
     const { data: prevData } = await prevQuery;
@@ -79,9 +107,13 @@ export async function getOverviewData(params: {
     }
 
     // ── 3. Total Transactions ──────────────────────────────────────
-    const salesCountQuery = db
+    let salesCountQuery = db
       .from('transactions')
       .select('*', { count: 'exact', head: true });
+
+    if (isBranchFilter) {
+      salesCountQuery = salesCountQuery.eq('branch_id', location_id);
+    }
     const { count: totalSales } = await salesCountQuery;
 
     // ── 4. Products / Inventory Stats ─────────────────────────────
@@ -203,6 +235,63 @@ export async function getOverviewData(params: {
       categoryMap[cat] = (categoryMap[cat] ?? 0) + 1;
     });
 
+    // ── 9b. Aggregate product sales and category contribution metrics ──
+    const productStatsMap = new Map<string, {
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      price: number;
+      quantitySold: number;
+      revenue: number;
+    }>();
+
+    let totalItemsSold = 0;
+    currData?.forEach(t => {
+      const items = (t as any).transaction_items || [];
+      items.forEach((item: any) => {
+        const prod = item.products;
+        if (!prod) return;
+
+        const qty = item.quantity || 0;
+        const sub = item.subtotal || (qty * (prod.price || 0));
+        totalItemsSold += qty;
+
+        const key = prod.id;
+        if (productStatsMap.has(key)) {
+          const stats = productStatsMap.get(key)!;
+          stats.quantitySold += qty;
+          stats.revenue += sub;
+        } else {
+          productStatsMap.set(key, {
+            id: prod.id,
+            name: prod.name,
+            sku: prod.sku,
+            category: prod.category || 'Other',
+            price: prod.price || 0,
+            quantitySold: qty,
+            revenue: sub
+          });
+        }
+      });
+    });
+
+    const productsList = Array.from(productStatsMap.values());
+    const topProducts = [...productsList]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    const categoryStatsMap = new Map<string, { name: string; value: number }>();
+    productsList.forEach(p => {
+      const catName = p.category;
+      if (categoryStatsMap.has(catName)) {
+        categoryStatsMap.get(catName)!.value += p.revenue;
+      } else {
+        categoryStatsMap.set(catName, { name: catName, value: p.revenue });
+      }
+    });
+    const categorySalesBreakdown = Array.from(categoryStatsMap.values());
+
     // ── 10. Network Health Score (0-100) ──────────────────────────
     const stockCoverage = totalProducts > 0
       ? (isBranchFilter
@@ -246,6 +335,10 @@ export async function getOverviewData(params: {
         stockHealth: totalStock > 50 ? 'Healthy' : 'Low',
         chartData,
         categoryBreakdown: Object.entries(categoryMap).map(([name, count]) => ({ name, count })),
+        categorySalesBreakdown,
+        totalItemsSold,
+        topProducts,
+        productsList,
         latestProducts,
         locations: totalBranches ?? 0,
         promos: promoCount ?? 0,

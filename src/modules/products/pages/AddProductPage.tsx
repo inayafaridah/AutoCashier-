@@ -166,9 +166,18 @@ export default function AddProductPage() {
           uploadFormData.append(angle.fieldName, file);
         }
       }
+      let token = '';
+      const savedUser = localStorage.getItem('autocashier_user');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed.token) token = parsed.token;
+        } catch (e) {}
+      }
 
       const response = await fetch(`${BACKEND_URL}/api/products`, {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: uploadFormData,
       });
 

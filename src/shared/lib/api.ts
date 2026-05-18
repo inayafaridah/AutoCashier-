@@ -139,15 +139,15 @@ export async function fetchBackend(action: string, data: any = {}) {
           return { status: 'success', data: json.data || [] };
         }
 
-        // Specific branch
-        const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${targetLoc}`, { headers });
+        // Specific branch using the new RBAC inventory module
+        const response = await fetch(`${BACKEND_URL}/api/inventory`, { headers });
         const json = await response.json();
         const items = Array.isArray(json?.data) ? json.data : [];
         return { status: 'success', data: items };
       }
 
       case 'addInventory': {
-        const response = await fetch(`${BACKEND_URL}/api/branch-inventory`, {
+        const response = await fetch(`${BACKEND_URL}/api/inventory`, {
           method: 'POST',
           headers,
           body: JSON.stringify(data)
@@ -166,8 +166,8 @@ export async function fetchBackend(action: string, data: any = {}) {
 
       case 'updateInventory': {
         const { id, ...updateData } = data;
-        const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${id}`, {
-          method: 'PATCH',
+        const response = await fetch(`${BACKEND_URL}/api/inventory/${id}`, {
+          method: 'PUT',
           headers,
           body: JSON.stringify(updateData)
         });
@@ -175,7 +175,7 @@ export async function fetchBackend(action: string, data: any = {}) {
       }
 
       case 'deleteInventory': {
-        const response = await fetch(`${BACKEND_URL}/api/branch-inventory/${data.id}${data.location_id ? `?branch_id=${data.location_id}` : ''}`, {
+        const response = await fetch(`${BACKEND_URL}/api/inventory/${data.id}`, {
           method: 'DELETE',
           headers
         });
@@ -300,6 +300,70 @@ export async function fetchBackend(action: string, data: any = {}) {
           method: 'POST',
           headers: uploadHeaders,
           body: data // data should be a FormData instance
+        });
+        return await response.json();
+      }
+
+      case 'submitProductRequest': {
+        const uploadHeaders = { ...headers };
+        const isFormData = data instanceof FormData;
+        if (isFormData) {
+          delete uploadHeaders['Content-Type'];
+        }
+        const response = await fetch(`${BACKEND_URL}/api/products/requests`, {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: isFormData ? data : JSON.stringify(data)
+        });
+        return await response.json();
+      }
+
+      case 'getProductRequests': {
+        const params = data.status ? `?status=${data.status}` : '';
+        const response = await fetch(`${BACKEND_URL}/api/products/requests/list${params}`, { headers });
+        return await response.json();
+      }
+
+      case 'approveProductRequest': {
+        const response = await fetch(`${BACKEND_URL}/api/products/requests/${data.id}/approve`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ price: data.price, category: data.category })
+        });
+        return await response.json();
+      }
+
+      case 'rejectProductRequest': {
+        const response = await fetch(`${BACKEND_URL}/api/products/requests/${data.id}/reject`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ reason: data.reason })
+        });
+        return await response.json();
+      }
+
+      case 'cancelProductRequest': {
+        const response = await fetch(`${BACKEND_URL}/api/products/requests/${data.id}`, {
+          method: 'DELETE',
+          headers
+        });
+        return await response.json();
+      }
+
+      case 'addFromCatalog': {
+        // Add a master-catalog product to branch inventory
+        const response = await fetch(`${BACKEND_URL}/api/inventory`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            product_id: data.product_id,
+            name: data.name,
+            category: data.category,
+            price: data.price,
+            stock: data.stock || 0,
+            sku: data.sku,
+            _link_existing: true, // flag for controller to just link, not create new
+          })
         });
         return await response.json();
       }

@@ -18,7 +18,7 @@ export async function loginWithUsername(username: string, password: string) {
   const match = hash ? await comparePassword(password, hash) : false;
   if (!match) return { ok: false, error: 'INVALID_CREDENTIALS' };
 
-  const token = signToken({ sub: data.id, role: data.role, username: data.username });
+  const token = signToken({ sub: data.id, role: data.role, username: data.username, branch_id: data.branch_id || null });
 
   // Return safe user (no password)
   const { password: _pw, ...safeUser } = data;

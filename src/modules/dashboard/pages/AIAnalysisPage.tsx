@@ -7,17 +7,21 @@ import {
   Sparkles, 
   Send, 
   Loader2,
-  Wand2
+  Wand2,
+  Database
 } from 'lucide-react';
 import {motion} from 'motion/react';
 import {toast} from 'sonner';
 import {useLocation} from '@/shared/context/LocationContext';
+import {fetchBackend} from '@/shared/lib/api';
 import {cn} from '@/shared/lib/utils';
 
 export default function AIAnalysisPage() {
-  const {locationName} = useLocation();
+  const {currentLocation, locationName} = useLocation();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [userInput, setUserInput] = useState('');
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [dbLoading, setDbLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState([
     { role: 'ai', content: `Greeting, Manager. Neural link to ${locationName} is active. How can I assist your local branch analysis today?` }
   ]);
@@ -31,33 +35,74 @@ export default function AIAnalysisPage() {
     scrollToBottom();
   }, [chatMessages]);
 
+  useEffect(() => {
+    const fetchDbData = async () => {
+      setDbLoading(true);
+      try {
+        const res = await fetchBackend('getInventory', { location_id: currentLocation });
+        if (res.status === 'success') {
+          setInventory(res.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load inventory for AI analysis', err);
+      } finally {
+        setDbLoading(false);
+      }
+    };
+    fetchDbData();
+  }, [currentLocation]);
+
   const handleAutoAnalysis = () => {
     setIsAnalyzing(true);
     setTimeout(() => {
       setIsAnalyzing(false);
       
-      const reportContent = `### **BRANCH STRATEGIC ANALYSIS: ${locationName.toUpperCase()}**
+      const lowStockItems = inventory.filter(i => (i.stock || 0) < 20);
+      const skuCount = inventory.length;
+      const totalVal = inventory.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.stock || 0)), 0);
+      const healthScore = skuCount > 0 ? Math.round(((skuCount - lowStockItems.length) / skuCount) * 100) : 100;
+      
+      const categories = Array.from(new Set(inventory.map(i => i.category || 'Other')));
+      const topCategories = categories.slice(0, 3).join(', ') || 'General';
+
+      const lowStockReport = lowStockItems.length > 0
+        ? lowStockItems.map(i => `* **${i.name}**: Sisa stok **${i.stock}** unit (harga jual Rp ${i.price.toLocaleString()})`).join('\n')
+        : '* **No immediate stock shortage detected.** All active SKU inventories are running above critical margins.';
+
+      const actionableReorder = lowStockItems.length > 0
+        ? `Buat replenishment order segera untuk item-item yang menipis (**${lowStockItems.slice(0, 2).map(i => i.name).join(', ')}**) guna mencegah potensi lost sales.`
+        : 'Lakukan pemantauan berkala dan siapkan program bundling untuk memaksimalkan perputaran produk sehat.';
+
+      const reportContent = `### **STRATEGIC AI OPERATIONS REPORT: ${locationName.toUpperCase()}**
 
 **Executive Summary:**
-Local operations at **${locationName}** are performing at **88.4% efficiency**. Predictive models suggest a high-impact window for revenue optimization in the next 72 hours.
+Local branch **${locationName}** has completed a real-time database audit. The operations are currently performing at **${healthScore}% health efficiency**, backed by live database verification.
 
-**Anomalies Detected:**
-* **Stock Variance:** *Arabica Signature* stock levels are low relative to projected weekend demand.
-* **Customer Pulse:** Spike in morning traffic detected (07:00 - 09:00), leading to suboptimal wait times.
-* **Waste Vector:** Recent pastry disposal rates are 12% higher than the network average.
+* **Total Active SKUs:** **${skuCount}** unique product types
+* **Operational Asset Value:** **Rp ${totalVal.toLocaleString()}**
+* **Stock Security Status:** ${healthScore >= 80 ? 'OPTIMAL' : 'REPLENISHMENT REQUIRED'}
 
-**Actionable Advice:**
-1. **Restock Priority:** Immediately increase *Arabica Signature* inventory by 20 units.
-2. **Shift Optimization:** Deploy an additional barista for the morning peak (07:00-09:00) to capture 15% more throughput.
-3. **Dynamic Bundling:** Launch a "Morning Classic" promo to reduce pastry waste and boost basket size.`;
+**Real-Time Database Diagnostics:**
+We scanned your live inventory database and identified the following operational factors:
+
+**Stock Variance & Alerts:**
+${lowStockReport}
+
+**Category Distribution:**
+* Branch inventory is primarily distributed across: **${topCategories}**.
+
+**Actionable Strategic Advice:**
+1. **Restock Priority:** ${actionableReorder}
+2. **Promotional Focus:** Launch a fast-moving customer reward bundle centering on your top-performing categories (**${categories[0] || 'Coffee'}**) to increase average customer cart size.
+3. **Staff Allocation:** Deploy optimized barista scheduling during peak operational traffic (predicted spike at 08:00 - 10:00 and 15:00 - 17:00) to maximize transaction throughput by up to 15%.`;
 
       setChatMessages(prev => [...prev, { role: 'ai', content: reportContent }]);
       
-      toast.success("Branch Analysis Complete", {
-        description: "Intelligent report injected into local neural link.",
+      toast.success("Database Analysis Completed", {
+        description: `Real-time intelligence report generated for ${locationName}.`,
         duration: 4000,
       });
-    }, 2500);
+    }, 2000);
   };
 
   const handleSendMessage = (e?: FormEvent) => {
@@ -69,22 +114,51 @@ Local operations at **${locationName}** are performing at **88.4% efficiency**. 
     setChatMessages(newMessages);
     setUserInput('');
 
-    // Simulate AI Response
+    // Dynamic database-aware answers!
+    setIsAnalyzing(true);
     setTimeout(() => {
+      setIsAnalyzing(false);
+      const query = currentInput.toLowerCase();
+      let matchedReply = '';
+
+      // Try to search for product in database matching query
+      const matchedProducts = inventory.filter(i => i.name.toLowerCase().includes(query) || (i.category && i.category.toLowerCase().includes(query)));
+      
+      if (query.includes('stok') || query.includes('stock') || query.includes('reorder') || query.includes('tipis') || query.includes('sedikit')) {
+        const lowStock = inventory.filter(i => (i.stock || 0) < 20);
+        if (lowStock.length > 0) {
+          matchedReply = `Saya mendeteksi **${lowStock.length} produk** dengan stok di bawah batas aman (< 20 unit):\n\n` +
+            lowStock.map(i => `* **${i.name}**: ${i.stock} unit (Rp ${i.price.toLocaleString()})`).join('\n') + 
+            `\n\nDirekomendasikan untuk segera melakukan pengisian ulang.`;
+        } else {
+          matchedReply = `Seluruh **${inventory.length} produk** di database Anda berada dalam kondisi aman (stok di atas batas minimum). Tidak ada kebutuhan restock mendesak saat ini.`;
+        }
+      } else if (query.includes('total') || query.includes('aset') || query.includes('nilai') || query.includes('value')) {
+        const totalVal = inventory.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.stock || 0)), 0);
+        matchedReply = `Berdasarkan data riil di database Anda untuk **${locationName}**:\n` +
+          `* **Total SKU Aktif:** ${inventory.length}\n` +
+          `* **Total Nilai Aset Inventaris:** Rp ${totalVal.toLocaleString()}\n` +
+          `* **Status Kesehatan:** ${inventory.filter(i => i.stock < 20).length > 0 ? 'Perlu perhatian khusus pada beberapa item.' : 'Sangat Sehat.'}`;
+      } else if (matchedProducts.length > 0) {
+        matchedReply = `Saya menemukan produk berikut di database **${locationName}** yang cocok dengan pencarian Anda:\n\n` +
+          matchedProducts.slice(0, 5).map(i => `* **${i.name}**\n  - Kategori: ${i.category}\n  - Stok saat ini: **${i.stock}** unit\n  - Harga satuan: **Rp ${i.price.toLocaleString()}**\n  - Status: ${i.stock < 20 ? '🔴 KRITIS (perlu restock)' : '🟢 AMAN'}`).join('\n\n');
+      } else {
+        matchedReply = `Saya telah memproses pertanyaan Anda tentang **"${currentInput}"** di cabang **${locationName}**.\n\n` +
+          `Berdasarkan data real-time database kami:\n` +
+          `* Kami memonitor **${inventory.length} SKU** secara aktif.\n` +
+          `* Total nilai stok tersimpan sebesar **Rp ${inventory.reduce((a, c) => a + (c.price * c.stock), 0).toLocaleString()}**.\n` +
+          `* Tidak ditemukan produk spesifik dengan nama/kategori tersebut. Coba cari produk lain seperti kopi, pastry, cake, atau tanyakan tentang 'stok tipis' dan 'nilai aset'.`;
+      }
+
       setChatMessages(prev => [...prev, { 
         role: 'ai', 
-        content: `I've analyzed the local branch data regarding **${currentInput.toLowerCase()}**. 
-
-Based on my analysis of ${locationName}:
-* Current trends support a **12% increase** in potential capture.
-* Competitor activity in the area suggests maintaining current pricing.
-* Efficiency can be boosted by targeted staff reallocation.` 
+        content: matchedReply
       }]);
     }, 1000);
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12 animate-in fade-in duration-700">
+    <div className="max-w-5xl mx-auto space-y-8 pb-12 animate-in fade-in duration-700 font-sans">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-gray-100 pb-8">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 mb-1">
@@ -97,7 +171,7 @@ Based on my analysis of ${locationName}:
         
         <Button 
           onClick={handleAutoAnalysis}
-          disabled={isAnalyzing}
+          disabled={isAnalyzing || dbLoading}
           className="bg-indigo-600 hover:bg-indigo-700 h-14 px-8 rounded-2xl shadow-xl shadow-indigo-600/20 font-black uppercase tracking-widest text-[11px] text-white border-none transition-all hover:scale-[1.02] gap-3"
         >
           {isAnalyzing ? (
@@ -161,13 +235,15 @@ Based on my analysis of ${locationName}:
                   type="text"
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
-                  placeholder={`Ask anything about ${locationName} performance...`}
-                  className="w-full bg-white border-none rounded-3xl h-16 pl-8 pr-16 text-sm font-bold shadow-sm focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                  placeholder={dbLoading ? "Synchronizing branch database..." : `Ask anything about ${locationName} performance...`}
+                  disabled={dbLoading}
+                  className="w-full bg-white border-none rounded-3xl h-16 pl-8 pr-16 text-sm font-bold shadow-sm focus:ring-4 focus:ring-indigo-100 transition-all outline-none disabled:opacity-50"
                 />
                 <Button 
                   type="submit"
                   size="icon" 
-                  className="absolute right-3 top-3 h-10 w-10 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all active:scale-90"
+                  disabled={dbLoading}
+                  className="absolute right-3 top-3 h-10 w-10 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all active:scale-90 disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
@@ -189,19 +265,22 @@ Based on my analysis of ${locationName}:
                 <div>
                   <h5 className="text-xl font-black tracking-tighter text-gray-900 leading-tight">Branch Health</h5>
                   <p className="text-xs text-gray-500 font-medium mt-3 leading-relaxed">
-                    AI monitoring of {locationName} is optimal. Network sync latency is within 14ms parameters.
+                    AI monitoring of {locationName} is active and sync'd. Local inventory database parsed in real-time.
                   </p>
                 </div>
                 <div className="space-y-4 pt-4 border-t border-gray-50">
                   {[
-                    { name: 'Stock Sync', status: 'Active', pulse: 'bg-emerald-500' },
-                    { name: 'Predictive Link', status: 'Active', pulse: 'bg-indigo-500' },
+                    { name: 'Stock Sync', status: dbLoading ? 'Syncing...' : 'Active', pulse: dbLoading ? 'bg-amber-500' : 'bg-emerald-500', Icon: Database },
+                    { name: 'Predictive Link', status: 'Active', pulse: 'bg-indigo-500', Icon: Sparkles },
                   ].map(cluster => (
                     <div key={cluster.name} className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-900">{cluster.name}</span>
+                      <div className="flex items-center gap-2">
+                        <cluster.Icon className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-xs font-bold text-gray-900">{cluster.name}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{cluster.status}</span>
-                        <div className={cn("w-2 h-2 rounded-full animate-pulse", cluster.pulse)} />
+                        <div className={cn("w-2 h-2 rounded-full", cluster.pulse, cluster.pulse === 'bg-emerald-500' && "animate-pulse")} />
                       </div>
                     </div>
                   ))}
@@ -214,3 +293,4 @@ Based on my analysis of ${locationName}:
     </div>
   );
 }
+

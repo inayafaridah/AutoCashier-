@@ -10,7 +10,7 @@ import {
   BarChart3, Clock, User, Plus, Minus, Edit3
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { fetchBackend } from '@/shared/lib/api';
+import { fetchBackend, BACKEND_URL } from '@/shared/lib/api';
 import { AdjustStockModal } from '@/shared/components/layout/AdjustStockModal';
 import { toast } from 'sonner';
 
@@ -203,7 +203,7 @@ export default function BranchInventoryPage() {
                             <td className="py-4 pl-6">
                               <div className="flex items-center gap-3">
                                 {item.image_url ? (
-                                  <img src={item.image_url} className="w-10 h-10 rounded-xl object-cover border border-gray-100" />
+                                  <img src={item.image_url.startsWith('http') ? item.image_url : `${BACKEND_URL}${item.image_url}`} className="w-10 h-10 rounded-xl object-cover border border-gray-100" />
                                 ) : (
                                   <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
                                     <Package className="w-4 h-4 text-gray-300" />

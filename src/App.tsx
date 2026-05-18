@@ -66,7 +66,7 @@ function AppRoutes() {
       
       {/* Shared Routes */}
       <Route path="/overview" element={<ProtectedLayout><OverviewPage /></ProtectedLayout>} />
-      <Route path="/monitor" element={<ProtectedLayout><MonitorPage /></ProtectedLayout>} />
+      <Route path="/monitor" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><MonitorPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/promo" element={<ProtectedLayout><PromoPage /></ProtectedLayout>} />
       <Route path="/promo/create" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
       <Route path="/promo/edit/:id" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
@@ -77,7 +77,7 @@ function AppRoutes() {
       <Route path="/catalog" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><MasterProductsPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/master-products" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><MasterProductsPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/add-product" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><AddProductPage /></RoleGuard></ProtectedLayout>} />
-      <Route path="/users" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><UsersPage /></RoleGuard></ProtectedLayout>} />
+      <Route path="/users" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin', 'admin', 'branch_admin']}><UsersPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/broadcast" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><BroadcastPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/insights" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><AIInsightsPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/settings" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin']}><UsersPage /></RoleGuard></ProtectedLayout>} />

@@ -124,8 +124,7 @@ export async function createProduct(req: Request, res: Response) {
       console.log(`[createProduct] ✅ ${imageEntries.length} foto berhasil diupload & didaftarkan untuk produk: ${createdProduct.name}`);
     }
 
-    // Initialize stock in all branches
-    await productService.initializeProductInAllBranches(createdProduct.id, Number(price));
+    // Removed initializeProductInAllBranches as products are now tenant-isolated
 
     return res.status(201).json({
       status: 'success',
@@ -148,15 +147,29 @@ export async function updateProductController(req: Request, res: Response) {
 export async function deleteProductController(req: Request, res: Response) {
   const { id } = req.params;
 
-  // 1. Collect all Supabase Storage paths for this product
-  const storagePaths = await productService.getProductImagePaths(id);
-
-  // 2. Delete files from Supabase Storage
-  await productService.deleteImagesFromStorage(storagePaths);
-
-  // 3. Delete product from DB (cascades to product_images automatically)
+  // 1. Try to delete product from DB first to ensure we don't orphan images if constraint fails
   const result = await productService.deleteProduct(id);
-  if (!result.ok) return res.status(500).json({ status: 'error', error: result.error?.message || result.error });
+  if (!result.ok) {
+    const errMsg = result.error?.message || String(result.error);
+    const errCode = result.error?.code;
+
+    // Check for PostgreSQL foreign key constraint violation (code 23503)
+    if (errCode === '23503' || errMsg.includes('violates foreign key constraint') || errMsg.includes('violates not-null constraint')) {
+      const friendlyMessage = 'Produk ini tidak dapat dihapus secara permanen karena kolom product_id di riwayat transaksi diatur sebagai NOT NULL.\n\n💡 Solusi:\nJalankan query DDL berikut di Supabase SQL Editor agar produk bisa dihapus dan otomatis diset menjadi NULL di riwayat transaksi:\n\nALTER TABLE transaction_items ALTER COLUMN product_id DROP NOT NULL;\n\nALTER TABLE transaction_items DROP CONSTRAINT IF EXISTS transaction_items_product_id_fkey, ADD CONSTRAINT transaction_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;';
+      return res.status(409).json({
+        status: 'error',
+        message: friendlyMessage,
+        error: friendlyMessage,
+        code: 'FOREIGN_KEY_VIOLATION'
+      });
+    }
+
+    return res.status(500).json({ status: 'error', error: errMsg });
+  }
+
+  // 2. If DB delete succeeded, collect all Supabase Storage paths for this product and delete files
+  const storagePaths = await productService.getProductImagePaths(id);
+  await productService.deleteImagesFromStorage(storagePaths);
 
   console.log(`[deleteProduct] ✅ Product ${id} deleted, ${storagePaths.length} file(s) removed from storage.`);
   return res.json({ status: 'success', deletedFiles: storagePaths.length });

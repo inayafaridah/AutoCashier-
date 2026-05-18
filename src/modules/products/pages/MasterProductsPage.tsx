@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -15,6 +15,11 @@ import {
   X,
   Save,
   Loader2,
+  Check,
+  Clock,
+  Ban,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
@@ -22,6 +27,8 @@ import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
 import { fetchBackend, BACKEND_URL } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
+import { toast } from 'sonner';
 // Matches actual DB schema: id, sku, name, price, stock, ai_label, category, image_url, created_at
 type ProductRecord = {
   id: string;
@@ -48,6 +55,63 @@ const getImageUrl = (url: string | null | undefined) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   return `${BACKEND_URL}${url}`;
+};
+
+// Helper to get auth token
+const getToken = (): string => {
+  try {
+    const raw = localStorage.getItem('autocashier_user');
+    if (raw) return JSON.parse(raw)?.token || '';
+  } catch {}
+  return '';
+};
+
+// Helper to parse and render product request description & photos elegantly
+const renderRequestDescription = (desc: string) => {
+  if (!desc) return <span className="text-gray-400 font-medium">-</span>;
+  
+  try {
+    if (desc.trim().startsWith('{')) {
+      const parsed = JSON.parse(desc);
+      const reason = parsed.reason || '';
+      const images = parsed.images || [];
+      
+      return (
+        <div className="space-y-2.5 max-w-sm py-1">
+          {reason ? (
+            <p className="font-semibold text-gray-700 text-xs bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 leading-relaxed">
+              💡 {reason}
+            </p>
+          ) : (
+            <p className="text-gray-400 italic text-[11px] font-medium">Tidak ada keterangan tertulis</p>
+          )}
+          
+          {images.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {images.map((img: any, idx: number) => (
+                <div key={idx} className="relative group/thumb cursor-pointer h-9 w-9 flex-shrink-0">
+                  <a href={getImageUrl(img.imageUrl)} target="_blank" rel="noreferrer" title={`Lihat foto ${img.angle}`}>
+                    <img
+                      src={getImageUrl(img.imageUrl)}
+                      alt={img.angle}
+                      className="h-9 w-9 object-cover rounded-lg border border-gray-200 hover:border-indigo-500 shadow-sm transition-all hover:scale-105"
+                    />
+                  </a>
+                  <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[7px] px-1 rounded-br-lg rounded-tl-sm uppercase font-extrabold font-mono tracking-tighter">
+                    {img.angle.substring(0, 1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+  } catch (e) {
+    console.warn('Failed to parse request description:', e);
+  }
+  
+  return <span className="text-gray-600 font-semibold">{desc}</span>;
 };
 
 // ─── Edit Modal ──────────────────────────────────────────────────────────────
@@ -78,9 +142,13 @@ function ProductEditModal({
     setSaving(true);
     setSaveError(null);
     try {
+      const token = getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(`${BACKEND_URL}/api/products/${product.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: form.name.trim(),
           category: form.category.trim() || null,
@@ -320,6 +388,10 @@ export default function MasterProductsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProductRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Approval Workflow State
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
   const handleProductSaved = (updated: ProductRecord) => {
     setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
     setEditProduct(null);
@@ -343,13 +415,73 @@ export default function MasterProductsPage() {
     }
   };
 
-  useEffect(() => { void loadProducts(); }, []);
+  const loadRequests = useCallback(async () => {
+    setLoadingRequests(true);
+    try {
+      const res = await fetchBackend('getProductRequests');
+      if (res.status === 'success') {
+        setRequests(res.data || []);
+      }
+    } catch (err: any) {
+      toast.error('Gagal memuat pengajuan produk: ' + err.message);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
+
+  const handleApproveRequest = async (id: string, price: number, category: string) => {
+    try {
+      const res = await fetchBackend('approveProductRequest', { id, price, category });
+      if (res.status === 'success') {
+        toast.success('Pengajuan produk berhasil disetujui');
+        loadRequests();
+        loadProducts(); // Reload catalog since new product was created
+      } else {
+        toast.error(res.message || 'Gagal menyetujui pengajuan');
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + err.message);
+    }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    const reason = prompt('Masukkan alasan penolakan pengajuan produk ini:');
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      toast.error('Alasan penolakan wajib diisi');
+      return;
+    }
+
+    try {
+      const res = await fetchBackend('rejectProductRequest', { id, reason: reason.trim() });
+      if (res.status === 'success') {
+        toast.success('Pengajuan produk berhasil ditolak');
+        loadRequests();
+      } else {
+        toast.error(res.message || 'Gagal menolak pengajuan');
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + err.message);
+    }
+  };
+
+  useEffect(() => {
+    void loadProducts();
+    void loadRequests();
+  }, [loadRequests]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/products/${deleteTarget.id}`, { method: 'DELETE' });
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${BACKEND_URL}/api/products/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers
+      });
       const data = await res.json();
       if (res.ok && data.status === 'success') {
         setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
@@ -407,14 +539,17 @@ export default function MasterProductsPage() {
             <Package className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-gray-900">SKU Directory</h1>
-            <p className="text-sm font-medium text-gray-500 mt-0.5">Manage and track your entire retail merchandise inventory</p>
+            <h1 className="text-2xl font-black tracking-tighter text-gray-900">SKU Directory & Approvals</h1>
+            <p className="text-sm font-medium text-gray-500 mt-0.5">Manage master catalog and verify new product requests from branches</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={loadProducts}
+            onClick={() => {
+              void loadProducts();
+              void loadRequests();
+            }}
             className="h-11 px-4 rounded-xl border-gray-200 bg-white font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm gap-2 text-xs"
           >
             <RefreshCw className="h-4 w-4" /> Refresh
@@ -431,9 +566,9 @@ export default function MasterProductsPage() {
       {/* ── STAT CARDS ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
-          { label: 'Total Produk', value: stats.total, icon: Package, iconBg: 'bg-indigo-50 text-indigo-600' },
+          { label: 'Total Produk Master', value: stats.total, icon: Package, iconBg: 'bg-indigo-50 text-indigo-600' },
           { label: 'Tervalidasi AI', value: stats.active, icon: BadgeCheck, iconBg: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Menunggu Validasi', value: stats.inactive, icon: AlertTriangle, iconBg: 'bg-amber-50 text-amber-600' },
+          { label: 'Menunggu Persetujuan', value: requests.filter(r => r.status === 'pending').length, icon: AlertTriangle, iconBg: 'bg-amber-50 text-amber-600' },
         ].map(({ label, value, icon: Icon, iconBg }, i) => (
           <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
@@ -447,184 +582,300 @@ export default function MasterProductsPage() {
         ))}
       </div>
 
-      {/* ── TABLE CARD ── */}
-      <Card className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-6 py-4">
-          <div className="relative w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
-            <Input
-              placeholder="Cari nama, SKU, kategori, atau label AI..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="h-11 rounded-xl border-gray-100 bg-gray-50 pl-11 pr-4 text-sm font-medium shadow-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 placeholder:text-gray-300 transition-all"
-            />
-          </div>
-        </div>
+      {/* Tabs */}
+      <Tabs defaultValue="catalog" className="w-full space-y-6">
+        <TabsList className="bg-gray-100 p-1.5 rounded-2xl w-fit flex gap-1 h-fit">
+          <TabsTrigger value="catalog" className="rounded-xl px-6 py-3 font-black text-xs uppercase tracking-wider transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+            Daftar Master SKU
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="rounded-xl px-6 py-3 font-black text-xs uppercase tracking-wider transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+            Permintaan Approval
+            {requests.filter(r => r.status === 'pending').length > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-rose-500 text-white rounded-full text-[9px] font-bold">
+                {requests.filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-6 p-24">
-              <div className="relative flex items-center justify-center">
-                 <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full" />
-                 <Loader2 className="w-12 h-12 text-indigo-600 animate-spin relative z-10" />
+        <TabsContent value="catalog">
+          {/* ── TABLE CARD ── */}
+          <Card className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <div className="relative w-full">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                <Input
+                  placeholder="Cari nama, SKU, kategori, atau label AI..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-11 rounded-xl border-gray-100 bg-gray-50 pl-11 pr-4 text-sm font-medium shadow-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 placeholder:text-gray-300 transition-all"
+                />
               </div>
-              <p className="text-sm font-black uppercase tracking-widest text-gray-400">Sinkronisasi Katalog Database...</p>
             </div>
-          ) : error ? (
-            <div className="p-10">
-              <div className="rounded-[32px] border border-rose-100 bg-rose-50 p-8 text-rose-700 text-center max-w-lg mx-auto">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-rose-100">
-                   <AlertTriangle className="h-8 w-8 text-rose-500" />
+
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-6 p-24">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full" />
+                  <Loader2 className="w-12 h-12 text-indigo-600 animate-spin relative z-10" />
                 </div>
-                <div className="text-sm font-black uppercase tracking-[0.2em] mb-2">Sinkronisasi Gagal</div>
-                <p className="text-sm font-medium leading-relaxed text-rose-600/80 mb-6">{error}</p>
-                <Button onClick={loadProducts} className="h-12 px-8 rounded-2xl bg-rose-600 font-bold text-white hover:bg-rose-700 shadow-xl shadow-rose-600/20">
-                  Coba Koneksi Ulang
-                </Button>
+                <p className="text-sm font-black uppercase tracking-widest text-gray-400">Sinkronisasi Katalog Database...</p>
               </div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-gray-50/60 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                    <th className="py-4 pl-6">Produk</th>
-                    <th className="py-4">SKU</th>
-                    <th className="py-4">Harga</th>
-                    <th className="py-4">Stok</th>
-                    <th className="py-4">Status AI</th>
-                    <th className="py-4 text-right pr-6">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  <AnimatePresence initial={false}>
-                    {filteredProducts.length > 0 ? (
-                      filteredProducts.map((product) => (
-                        <motion.tr
-                          key={product.id}
-                          initial={{ opacity: 0, y: 14 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -14 }}
-                          className="group hover:bg-indigo-50/20 transition-colors border-b border-gray-50 last:border-0"
-                        >
-                          {/* Product cell */}
-                          <td className="py-4 pl-6">
-                            <div className="flex items-center gap-3">
-                              {product.image_url ? (
-                                <div className="relative h-16 w-16 flex-shrink-0">
-                                  <img
-                                    src={getImageUrl(product.image_url)}
-                                    alt={product.name ?? 'Produk'}
-                                    className="h-12 w-12 rounded-xl object-cover border border-gray-200 shadow-sm transition-transform duration-300 group-hover:scale-105"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                      (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('hidden');
-                                    }}
-                                  />
-                                  <div hidden className="absolute inset-0 flex items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
-                                    <Package className="h-5 w-5 text-indigo-400" />
+            ) : error ? (
+              <div className="p-10">
+                <div className="rounded-[32px] border border-rose-100 bg-rose-50 p-8 text-rose-700 text-center max-w-lg mx-auto">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-rose-100">
+                    <AlertTriangle className="h-8 w-8 text-rose-500" />
+                  </div>
+                  <div className="text-sm font-black uppercase tracking-[0.2em] mb-2">Sinkronisasi Gagal</div>
+                  <p className="text-sm font-medium leading-relaxed text-rose-600/80 mb-6">{error}</p>
+                  <Button onClick={loadProducts} className="h-12 px-8 rounded-2xl bg-rose-600 font-bold text-white hover:bg-rose-700 shadow-xl shadow-rose-600/20">
+                    Coba Koneksi Ulang
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50/60 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                      <th className="py-4 pl-6">Produk</th>
+                      <th className="py-4">SKU</th>
+                      <th className="py-4">Harga</th>
+                      <th className="py-4">Stok</th>
+                      <th className="py-4">Status AI</th>
+                      <th className="py-4 text-right pr-6">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    <AnimatePresence initial={false}>
+                      {filteredProducts.length > 0 ? (
+                        filteredProducts.map((product) => (
+                          <motion.tr
+                            key={product.id}
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -14 }}
+                            className="group hover:bg-indigo-50/20 transition-colors border-b border-gray-50 last:border-0"
+                          >
+                            {/* Product cell */}
+                            <td className="py-4 pl-6">
+                              <div className="flex items-center gap-3">
+                                {product.image_url ? (
+                                  <div className="relative h-16 w-16 flex-shrink-0">
+                                    <img
+                                      src={getImageUrl(product.image_url)}
+                                      alt={product.name ?? 'Produk'}
+                                      className="h-12 w-12 rounded-xl object-cover border border-gray-200 shadow-sm transition-transform duration-300 group-hover:scale-105"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('hidden');
+                                      }}
+                                    />
+                                    <div hidden className="absolute inset-0 flex items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+                                      <Package className="h-5 w-5 text-indigo-400" />
+                                    </div>
                                   </div>
+                                ) : (
+                                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-indigo-100 bg-indigo-50/50">
+                                    <Package className="h-7 w-7 text-indigo-400" />
+                                  </div>
+                                )}
+                                <div className="space-y-0.5">
+                                  <div className="font-black text-gray-900 group-hover:text-indigo-600 transition-colors text-sm">{product.name || '-'}</div>
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{product.category || 'Uncategorized'}</div>
                                 </div>
-                              ) : (
-                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-indigo-100 bg-indigo-50/50">
-                                  <Package className="h-7 w-7 text-indigo-400" />
-                                </div>
-                              )}
-                              <div className="space-y-0.5">
-                                <div className="font-black text-gray-900 group-hover:text-indigo-600 transition-colors text-sm">{product.name || '-'}</div>
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{product.category || 'Uncategorized'}</div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-4 font-mono text-xs font-bold text-gray-500">{product.sku || '-'}</td>
+                            <td className="py-4 font-mono text-xs font-bold text-gray-500">{product.sku || '-'}</td>
 
-                          <td className="py-4">
-                             <div className="flex flex-col">
-                               <span className="font-black text-gray-900 tracking-tight text-base">{formatCurrency(product.price)}</span>
-                               <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mt-1">Active</span>
-                             </div>
-                          </td>
+                            <td className="py-4">
+                              <div className="flex flex-col">
+                                <span className="font-black text-gray-900 tracking-tight text-base">{formatCurrency(product.price)}</span>
+                                <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mt-1">Active</span>
+                              </div>
+                            </td>
 
-                          <td className="py-4">
-                            <div className="flex items-center">
-                              {(product.stock ?? 0) < 20 ? (
-                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 font-mono text-sm font-bold shadow-sm">
-                                   <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-                                   {product.stock ?? 0}
-                                 </div>
-                              ) : (
-                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 text-gray-600 border border-gray-200 font-mono text-sm font-bold">
-                                   {product.stock ?? 0}
-                                 </div>
-                              )}
-                            </div>
-                          </td>
+                            <td className="py-4">
+                              <div className="flex items-center">
+                                {(product.stock ?? 0) < 20 ? (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 font-mono text-sm font-bold shadow-sm">
+                                    <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                                    {product.stock ?? 0}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 text-gray-600 border border-gray-200 font-mono text-sm font-bold">
+                                    {product.stock ?? 0}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
 
-                          <td className="py-4">
-                            <Badge className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] ${
-                              product.ai_label
-                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-600'
-                                : 'border border-amber-200 bg-amber-50 text-amber-600'
-                            }`}>
-                              {product.ai_label ? (
-                                 <div className="flex items-center gap-1.5">
-                                   <BadgeCheck className="w-3.5 h-3.5" />
-                                   {product.ai_label}
-                                 </div>
-                              ) : (
-                                 <div className="flex items-center gap-1.5">
-                                   <AlertTriangle className="w-3.5 h-3.5" />
-                                   Belum Ada
-                                 </div>
-                              )}
-                            </Badge>
-                          </td>
+                            <td className="py-4">
+                              <Badge className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] ${
+                                product.ai_label
+                                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-600'
+                                  : 'border border-amber-200 bg-amber-50 text-amber-600'
+                              }`}>
+                                {product.ai_label ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <BadgeCheck className="w-3.5 h-3.5" />
+                                    {product.ai_label}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    Belum Ada
+                                  </div>
+                                )}
+                              </Badge>
+                            </td>
 
-                          {/* Actions */}
-                          <td className="py-4 pr-6">
-                            <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-                              <Button variant="ghost" size="icon" onClick={() => setEditProduct(product)}
-                                className="bg-white hover:bg-indigo-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-indigo-600 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(79,70,229,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
-                                <Pencil className="w-5 h-5" strokeWidth={2.5} />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(product)}
-                                className="bg-white hover:bg-rose-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-rose-500 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(244,63,94,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
-                                <Trash2 className="w-5 h-5" strokeWidth={2.5} />
+                            {/* Actions */}
+                            <td className="py-4 pr-6">
+                              <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                                <Button variant="ghost" size="icon" onClick={() => setEditProduct(product)}
+                                  className="bg-white hover:bg-indigo-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-indigo-600 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(79,70,229,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
+                                  <Pencil className="w-5 h-5" strokeWidth={2.5} />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(product)}
+                                  className="bg-white hover:bg-rose-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-rose-500 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(244,63,94,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
+                                  <Trash2 className="w-5 h-5" strokeWidth={2.5} />
+                                </Button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))
+                      ) : (
+                        <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                          <td colSpan={6} className="px-10 py-24 text-center">
+                            <div className="mx-auto max-w-md space-y-4">
+                              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gray-50 border border-gray-100 shadow-sm text-gray-400">
+                                <Search className="h-8 w-8" />
+                              </div>
+                              <div className="space-y-2">
+                                <h3 className="text-xl font-black text-gray-900 tracking-tight">Belum ada data yang cocok</h3>
+                                <p className="text-sm font-medium leading-relaxed text-gray-500">
+                                  Produk yang Anda cari tidak ditemukan dalam database Master. Coba ubah kata kunci pencarian atau daftarkan produk baru.
+                                </p>
+                              </div>
+                              <Button
+                                onClick={() => navigate('/add-product')}
+                                className="h-12 mt-4 px-8 rounded-2xl bg-indigo-600 font-bold text-white hover:bg-indigo-700 shadow-xl shadow-indigo-600/20"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Registrasi Produk
                               </Button>
                             </div>
                           </td>
                         </motion.tr>
-                      ))
-                    ) : (
-                      <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <td colSpan={6} className="px-10 py-24 text-center">
-                          <div className="mx-auto max-w-md space-y-4">
-                            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gray-50 border border-gray-100 shadow-sm text-gray-400">
-                              <Search className="h-8 w-8" />
+                      )}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="requests">
+          <Card className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+            <CardHeader className="p-8">
+              <h3 className="text-lg font-black text-gray-900">Permintaan Produk Baru Cabang</h3>
+              <p className="text-gray-400 text-xs mt-1">Daftar pengajuan produk dari branch manager yang perlu disetujui untuk masuk katalog utama</p>
+            </CardHeader>
+            <CardContent className="p-8 pt-0">
+              {loadingRequests ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+                </div>
+              ) : requests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                  <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400">
+                    <Clock className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900">Tidak ada pengajuan aktif</h4>
+                    <p className="text-gray-400 text-xs mt-1">Seluruh pengajuan dari cabang sudah diproses.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-gray-50/60 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                        <th className="py-4 pl-6">Produk</th>
+                        <th className="py-4">Harga Diajukan</th>
+                        <th className="py-4">SKU / Unit</th>
+                        <th className="py-4">Deskripsi / Alasan</th>
+                        <th className="py-4">Status</th>
+                        <th className="py-4 text-right pr-6">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {requests.map((reqItem) => (
+                        <tr key={reqItem.id} className="hover:bg-indigo-50/10">
+                          <td className="py-4 pl-6">
+                            <div>
+                              <p className="font-black text-gray-900 text-sm">{reqItem.name}</p>
+                              <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">{reqItem.category}</p>
                             </div>
-                            <div className="space-y-2">
-                              <h3 className="text-xl font-black text-gray-900 tracking-tight">Belum ada data yang cocok</h3>
-                              <p className="text-sm font-medium leading-relaxed text-gray-500">
-                                Produk yang Anda cari tidak ditemukan dalam database Master. Coba ubah kata kunci pencarian atau daftarkan produk baru.
-                              </p>
-                            </div>
-                            <Button
-                              onClick={() => navigate('/add-product')}
-                              className="h-12 mt-4 px-8 rounded-2xl bg-indigo-600 font-bold text-white hover:bg-indigo-700 shadow-xl shadow-indigo-600/20"
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              Registrasi Produk
-                            </Button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    )}
-                  </AnimatePresence>
-                </tbody>
-              </table>
-            </div>
-          )}
-      </Card>
+                          </td>
+                          <td className="py-4 font-mono font-bold text-gray-700">
+                            Rp {reqItem.price.toLocaleString('id-ID')}
+                          </td>
+                          <td className="py-4 font-mono text-xs text-gray-400">
+                            {reqItem.sku || '-'}<br />
+                            <span className="text-[10px] font-sans font-bold text-gray-500">{reqItem.unit || 'pcs'}</span>
+                          </td>
+                          <td className="py-4 text-xs text-gray-500">
+                            {renderRequestDescription(reqItem.description)}
+                          </td>
+                          <td className="py-4">
+                            <Badge className={cn(
+                              'rounded-full px-3 py-1 text-[10px] font-black uppercase border-none',
+                              reqItem.status === 'approved' && 'bg-emerald-100 text-emerald-700',
+                              reqItem.status === 'pending' && 'bg-amber-100 text-amber-700',
+                              reqItem.status === 'rejected' && 'bg-rose-100 text-rose-700'
+                            )}>
+                              {reqItem.status}
+                            </Badge>
+                            {reqItem.status === 'rejected' && reqItem.rejection_reason && (
+                              <p className="text-[10px] text-rose-500 mt-1 italic">Reason: {reqItem.rejection_reason}</p>
+                            )}
+                          </td>
+                          <td className="py-4 pr-6 text-right">
+                            {reqItem.status === 'pending' && (
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApproveRequest(reqItem.id, reqItem.price, reqItem.category)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1 text-xs font-bold"
+                                >
+                                  <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRejectRequest(reqItem.id)}
+                                  className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-xl gap-1 text-xs font-bold"
+                                >
+                                  <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import overviewRoutes from '../modules/dashboard/overview.routes';
 import promoRoutes from '../modules/promos/promos.routes';
 import * as userController from '../modules/users/user.controller';
 import * as branchInventoryController from '../modules/inventory/branchInventory.controller';
+import branchAdminInventoryRoutes from '../modules/inventory/inventory.routes'; // <-- NEW
 import * as broadcastController from '../modules/broadcasts/broadcast.controller';
 import * as branchController from '../modules/inventory/branch.controller';
 import * as transactionController from '../modules/transactions/transaction.controller';
@@ -33,6 +34,9 @@ router.use('/overview', overviewRoutes);
 router.use('/promos', promoRoutes);
 router.use('/monitor', monitorRoutes);
 
+// Branch Admin RBAC Routes
+router.use('/inventory', branchAdminInventoryRoutes);
+
 // Broadcasts
 router.get('/broadcasts', broadcastController.getBroadcasts);
 router.post('/broadcasts', broadcastController.sendBroadcast);
@@ -44,7 +48,7 @@ router.patch('/users/:id', userController.updateUser);
 router.delete('/users/:id', userController.deleteUser);
 router.post('/users/:id/promos', userController.assignMemberPromo);
 
-// Branch Inventory
+// Legacy Branch Inventory (For backwards compatibility if needed)
 router.get('/branches', branchController.getBranches);
 router.get('/branch-inventory', branchInventoryController.listBranchSummaries);
 router.get('/branch-inventory/:id/movements', branchInventoryController.getMovements);

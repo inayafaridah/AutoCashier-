@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev:frontend": "vite --port=3000 --host=0.0.0.0",
+    "dev:frontend": "vite --port=3010 --host=0.0.0.0",
     "dev:backend": "npm run dev --prefix backend",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build": "vite build",

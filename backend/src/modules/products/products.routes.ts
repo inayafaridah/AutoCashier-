@@ -7,16 +7,29 @@ import {
   updateProductController,
   deleteProductController,
 } from './product.controller';
+import {
+  listRequests,
+  submitRequest,
+  approveRequest,
+  rejectRequest,
+  cancelRequest,
+} from './productRequests.controller';
 import { upload } from '../../middleware/upload';
+import { requireAuth } from '../../middleware/authMiddleware';
+import { requireRole } from '../../middleware/rbacMiddleware';
 
 const router = Router();
 
+// ─── Public / Any-Auth Routes ─────────────────────────────────────────────────
 router.get('/', listProducts);
 router.get('/search', searchProduct);
 router.get('/:id', getProduct);
 
+// ─── Super Admin Only: Create / Edit / Delete master products ─────────────────
 router.post(
   '/',
+  requireAuth,
+  requireRole(['super_admin']),
   upload.fields([
     { name: 'imageLeft', maxCount: 1 },
     { name: 'imageRight', maxCount: 1 },
@@ -26,7 +39,49 @@ router.post(
   createProduct
 );
 
-router.put('/:id', updateProductController);
-router.delete('/:id', deleteProductController);
+router.put('/:id', requireAuth, requireRole(['super_admin']), updateProductController);
+router.delete('/:id', requireAuth, requireRole(['super_admin']), deleteProductController);
+
+// ─── Product Requests (Branch Admin → Super Admin approval flow) ───────────────
+// GET all requests (super admin sees all; branch admin sees own)
+router.get('/requests/list', requireAuth, listRequests);
+
+// Branch Admin submits a new product request
+router.post(
+  '/requests',
+  requireAuth,
+  requireRole(['branch_admin', 'admin']),
+  upload.fields([
+    { name: 'imageLeft', maxCount: 1 },
+    { name: 'imageRight', maxCount: 1 },
+    { name: 'imageFront', maxCount: 1 },
+    { name: 'imageBack', maxCount: 1 },
+  ]),
+  submitRequest
+);
+
+// Super Admin approves a request
+router.patch(
+  '/requests/:id/approve',
+  requireAuth,
+  requireRole(['super_admin']),
+  approveRequest
+);
+
+// Super Admin rejects a request
+router.patch(
+  '/requests/:id/reject',
+  requireAuth,
+  requireRole(['super_admin']),
+  rejectRequest
+);
+
+// Branch Admin cancels their own pending request
+router.delete(
+  '/requests/:id',
+  requireAuth,
+  requireRole(['branch_admin', 'admin']),
+  cancelRequest
+);
 
 export default router;

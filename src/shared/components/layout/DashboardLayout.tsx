@@ -57,8 +57,8 @@ const SUPER_ADMIN_NAV = [
 const BRANCH_ADMIN_NAV = [
   {path: '/overview', label: 'Overview', icon: LayoutDashboard},
   {path: '/inventory', label: 'Inventory', icon: Archive},
-  {path: '/monitor', label: 'Monitor', icon: MonitorCheck},
   {path: '/promo', label: 'Promo', icon: Tag},
+  {path: '/users', label: 'User Management', icon: Users},
   {path: '/analysis', label: 'AI Insights', icon: BrainCircuit},
 ];
 

@@ -24,16 +24,13 @@ export async function getProductSalesData(params: {
     currentStart.setHours(0, 0, 0, 0);
 
     // 2. Fetch transactions with transaction items and product details
-    const { data: transactions, error } = await db
+    let query = db
       .from('transactions')
       .select(`
         id,
         total_price,
         created_at,
-        cashier_id,
-        users!left (
-          branch_id
-        ),
+        branch_id,
         transaction_items (
           quantity,
           subtotal,
@@ -50,19 +47,14 @@ export async function getProductSalesData(params: {
       .gte('created_at', currentStart.toISOString())
       .lte('created_at', currentEnd.toISOString());
 
+    if (location_id && location_id !== 'ALL') {
+      query = query.eq('branch_id', location_id);
+    }
+
+    const { data: transactions, error } = await query;
     if (error) throw error;
 
-    // 3. Filter in-memory by branch if location_id is specified
-    let filteredTransactions = transactions || [];
-    if (location_id && location_id !== 'ALL') {
-      filteredTransactions = filteredTransactions.filter(t => {
-        // Fallback: If cashier_id is null, we treat it as consolidated (available to all branches)
-        // so we don't filter it out. This ensures mock data is still visible.
-        if (!t.cashier_id) return true;
-        const userBranch = (t.users as any)?.branch_id;
-        return userBranch === location_id;
-      });
-    }
+    const filteredTransactions = transactions || [];
 
     // 4. Aggregate product metrics
     const productStatsMap = new Map<string, {

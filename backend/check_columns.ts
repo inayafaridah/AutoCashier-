@@ -2,7 +2,7 @@ import { supabaseAdmin } from './src/config/supabaseClient';
 
 async function checkColumns() {
   const { data, error } = await supabaseAdmin
-    .from('branch_inventory')
+    .from('categories')
     .select('*')
     .limit(1);
     

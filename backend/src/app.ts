@@ -11,7 +11,7 @@ dotenv.config();
 
 const app = express();
 
-const configuredOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001';
+const configuredOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001,http://localhost:3010,http://127.0.0.1:3010';
 const allowedOrigins = configuredOrigin
 	.split(',')
 	.map(origin => origin.trim())

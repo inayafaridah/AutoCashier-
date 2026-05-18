@@ -3,7 +3,6 @@ import { Product } from '../../models/Product';
 
 const STORAGE_BUCKET = 'product-images';
 
-// Columns: id, sku, name, price, stock, ai_label, category, image_url, created_at
 const PRODUCT_COLUMNS = 'id, sku, name, price, stock, ai_label, category, image_url, created_at';
 
 export async function getAllProducts(): Promise<{ ok: boolean; data?: Product[]; error?: any }> {
@@ -15,6 +14,7 @@ export async function getAllProducts(): Promise<{ ok: boolean; data?: Product[];
       .select(PRODUCT_COLUMNS)
       .order('created_at', { ascending: false });
     if (res?.error) return { ok: false, error: res.error };
+    
     return { ok: true, data: res?.data || [] };
   } catch (err) {
     return { ok: false, error: err };
@@ -31,13 +31,14 @@ export async function getProductById(id: string) {
       .limit(1)
       .maybeSingle();
     if (res?.error) return { ok: false, error: res.error };
+    
     return { ok: true, data: res?.data || null };
   } catch (err) {
     return { ok: false, error: err };
   }
 }
 
-export async function createProduct(payload: Omit<Product, 'id' | 'created_at'>) {
+export async function createProduct(payload: any) {
   try {
     const client = supabaseAdmin || supabase;
     console.log(`[productService] 🏗️  Creating product using ${client === supabaseAdmin ? 'ADMIN' : 'ANON'} client`);
@@ -45,14 +46,14 @@ export async function createProduct(payload: Omit<Product, 'id' | 'created_at'>)
     const safePayload: any = {
       sku: payload.sku,
       name: payload.name,
-      price: payload.price,
-      category: payload.category ?? null,
+      price: payload.price || 0,
+      category: payload.category || null,
       image_url: payload.image_url ?? null,
       ai_label: payload.ai_label ?? null,
       stock: payload.stock ?? 0,
     };
 
-    // Use .select().single() to get back the full created row (including DB-generated id)
+    // Use .select().single() to get back the full created row
     const res: any = await client
       .from('products')
       .insert([safePayload])
@@ -255,6 +256,7 @@ export async function searchProductByLabel(label: string) {
       .maybeSingle();
       
     if (error) throw error;
+    
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: err };

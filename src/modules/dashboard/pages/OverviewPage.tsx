@@ -16,6 +16,7 @@ import {
   MapPin,
   Globe,
   Tag,
+  Search,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -24,13 +25,23 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
+
+function formatRp(val: number) {
+  return 'Rp ' + val.toLocaleString('id-ID');
+}
+
+const COLORS = ['#6366F1', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6'];
 import {useAuth} from '@/shared/context/AuthContext';
 import {useLocation} from '@/shared/context/LocationContext';
 import {fetchBackend} from '@/shared/lib/api';
 import {cn} from '@/shared/lib/utils';
 import {Button} from '@/shared/components/ui/button';
+import {supabase} from '@/shared/lib/supabase';
 import {
   Tooltip,
   TooltipContent,
@@ -59,11 +70,16 @@ export default function OverviewPage() {
   const [timeframe, setTimeframe] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
   
   // Dynamic Date Selectors State
-  const [selectedYear, setSelectedYear] = useState('2026');
-  const [selectedMonth, setSelectedMonth] = useState('April');
-  const [selectedWeek, setSelectedWeek] = useState('Week 17');
+  const monthsList = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const currentYearStr = new Date().getFullYear().toString();
+  const currentMonthStr = monthsList[new Date().getMonth()];
+  
+  const [selectedYear, setSelectedYear] = useState(currentYearStr);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [selectedWeek, setSelectedWeek] = useState('Week 20');
   const [isExporting, setIsExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const loadOverview = async () => {
@@ -88,7 +104,28 @@ export default function OverviewPage() {
         setLoading(false);
       }
     };
+    
     loadOverview();
+
+    // Set up Real-time Subscription for Enterprise Overview
+    const channel = supabase.channel('realtime-overview')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        console.log('Real-time update: transactions changed on overview');
+        loadOverview();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        console.log('Real-time update: products changed on overview');
+        loadOverview();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'branch_inventory' }, () => {
+        console.log('Real-time update: branch_inventory changed on overview');
+        loadOverview();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentLocation, timeframe, selectedYear, selectedMonth, selectedWeek]);
 
   if (loading) {
@@ -564,6 +601,180 @@ export default function OverviewPage() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </Card>
+
+      {/* ── Visual Analytics Section: Top Products & Category Contribution ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Top Products Sales Chart */}
+        <Card className="border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.03)] rounded-3xl p-6 md:p-8 space-y-6 bg-white">
+          <div className="space-y-1">
+            <h4 className="text-lg font-black text-gray-900 tracking-tight">Top Products Sales</h4>
+            <p className="text-xs text-gray-400 font-medium">Highest generating items based on timeframe sales</p>
+          </div>
+          <div className="h-[300px] w-full">
+            {data?.topProducts && data.topProducts.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={data.topProducts}
+                  margin={{ top: 20, right: 10, left: 10, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                    dy={10}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                    tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${v/1000}k`}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const p = payload[0].payload;
+                        return (
+                          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl space-y-1 text-white">
+                            <p className="text-xs font-black leading-none mb-1 text-slate-400 uppercase tracking-widest">{p.category}</p>
+                            <p className="text-sm font-black">{p.name}</p>
+                            <p className="text-xs font-bold text-slate-300">Revenue: {formatRp(p.revenue)}</p>
+                            <p className="text-xs text-indigo-400 font-bold">Qty Sold: {p.quantitySold} unit</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="revenue" radius={[10, 10, 0, 0]} barSize={24}>
+                    {data.topProducts.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm font-semibold text-gray-400">Belum ada data penjualan pada periode ini.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Category Contribution Progress Bars */}
+        <Card className="border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.03)] rounded-3xl p-6 md:p-8 bg-white space-y-6">
+          <div className="space-y-1">
+            <h4 className="text-lg font-black text-gray-900 tracking-tight">Category Contribution</h4>
+            <p className="text-xs text-gray-400 font-medium">Proportional allocation of product categories by gross profit</p>
+          </div>
+          <div className="space-y-6 overflow-y-auto max-h-[300px] pr-2">
+            {data?.categorySalesBreakdown && data.categorySalesBreakdown.length > 0 ? (
+              data.categorySalesBreakdown.map((cat: any, index: number) => {
+                const percentage = (data?.revenue || 0) > 0 ? (cat.value / data.revenue) * 100 : 0;
+                return (
+                  <div key={cat.name} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="font-bold text-gray-800 capitalize">{cat.name}</span>
+                      <span className="font-black text-indigo-600">{percentage.toFixed(1)}% ({formatRp(cat.value)})</span>
+                    </div>
+                    <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percentage}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-12 flex items-center justify-center">
+                <p className="text-sm font-semibold text-gray-400">Belum ada data kategori.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Sold Products Table Card ── */}
+      <Card className="border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.03)] rounded-3xl p-6 md:p-8 bg-white space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-lg font-black text-gray-900 tracking-tight">Product Sales Analytics Table</h4>
+            <p className="text-xs text-gray-400 font-medium">Detail of individual product sales quantity and revenue contribution</p>
+          </div>
+          {/* Search Bar */}
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari produk, SKU, kategori..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/50">
+                <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Product Information</th>
+                <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Category</th>
+                <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Base Price</th>
+                <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantity Sold</th>
+                <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {(() => {
+                const filteredProducts = (data?.productsList || []).filter((p: any) =>
+                  p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  p.category.toLowerCase().includes(searchQuery.toLowerCase())
+                );
+                return filteredProducts.length > 0 ? (
+                  filteredProducts.map((p: any) => (
+                    <tr key={p.id} className="group hover:bg-slate-50/40 transition-colors duration-300">
+                      <td className="p-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-extrabold text-sm text-gray-900 group-hover:text-indigo-600 transition-colors duration-300">{p.name}</span>
+                          <span className="text-[10px] font-bold text-gray-400">SKU: {p.sku}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-black rounded-full capitalize">{p.category}</span>
+                      </td>
+                      <td className="p-4 font-bold text-xs text-gray-600">
+                        {formatRp(p.price)}
+                      </td>
+                      <td className="p-4">
+                        <span className="font-extrabold text-gray-900 bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-xs">
+                          {p.quantitySold} unit
+                        </span>
+                      </td>
+                      <td className="p-4 font-black text-sm text-gray-900 text-right">
+                        {formatRp(p.revenue)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-xs font-semibold text-gray-400">
+                      Tidak ada produk yang cocok dengan pencarian Anda.
+                    </td>
+                  </tr>
+                );
+              })()}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>

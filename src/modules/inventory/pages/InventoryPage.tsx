@@ -12,6 +12,7 @@ import {
   MoreVertical, 
   ArrowUpDown, 
   AlertCircle, 
+  AlertTriangle,
   DollarSign, 
   Trash2, 
   Edit2, 
@@ -353,66 +354,108 @@ export default function InventoryPage() {
                <div className="overflow-x-auto">
                   <table className="w-full text-left">
                      <thead>
-                        <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                           <th className="pb-4 pl-2">Product Name</th>
-                           <th className="pb-4">Category</th>
-                           <th className="pb-4">Stock</th>
-                           <th className="pb-4">Price</th>
-                           <th className="pb-4">Status</th>
-                           <th className="pb-4 text-right pr-2">Action</th>
+                        <tr className="bg-gray-50/60 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                           <th className="py-4 pl-6">Produk</th>
+                           <th className="py-4">SKU</th>
+                           <th className="py-4">Harga</th>
+                           <th className="py-4">Stok</th>
+                           <th className="py-4">Status AI</th>
+                           <th className="py-4 text-right pr-6">Aksi</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-50">
                         {(inventory || []).map((item) => (
-                           <tr key={item.id} className="group hover:bg-gray-50/50 transition-colors">
-                              <td className="py-5 pl-2">
-                                 <div className="flex items-center gap-4">
+                           <tr key={item.id} className="group hover:bg-indigo-50/20 transition-colors border-b border-gray-50 last:border-0">
+                              {/* Product Cell */}
+                              <td className="py-4 pl-6">
+                                 <div className="flex items-center gap-3">
                                     {item.image_url ? (
-                                      <img 
-                                        src={`${BACKEND_URL}${item.image_url}`} 
-                                        alt={item.name} 
-                                        className="w-10 h-10 rounded-xl object-cover border border-gray-100 bg-white shadow-sm"
-                                      />
+                                       <div className="relative h-12 w-12 flex-shrink-0">
+                                          <img 
+                                             src={item.image_url.startsWith('http') ? item.image_url : `${BACKEND_URL}${item.image_url}`} 
+                                             alt={item.name} 
+                                             className="h-12 w-12 rounded-xl object-cover border border-gray-200 shadow-sm transition-transform duration-300 group-hover:scale-105"
+                                             onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('hidden');
+                                             }}
+                                          />
+                                          <div hidden className="absolute inset-0 flex items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+                                             <Package className="h-5 w-5 text-indigo-400" />
+                                          </div>
+                                       </div>
                                     ) : (
-                                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center font-bold text-indigo-600 text-xs">
-                                         {item.name.substring(0, 1).toUpperCase()}
-                                      </div>
+                                       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-indigo-100 bg-indigo-50/50">
+                                          <Package className="h-7 w-7 text-indigo-400" />
+                                       </div>
                                     )}
-                                    <span className="font-bold text-gray-900 tracking-tight">{item.name}</span>
+                                    <div className="space-y-0.5">
+                                       <div className="font-black text-gray-900 group-hover:text-indigo-600 transition-colors text-sm">{item.name || '-'}</div>
+                                       <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{item.category || 'Uncategorized'}</div>
+                                    </div>
                                  </div>
                               </td>
-                              <td className="py-5">
-                                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.category}</span>
+
+                              {/* SKU Cell */}
+                              <td className="py-4 font-mono text-xs font-bold text-gray-500">{item.sku || '-'}</td>
+
+                              {/* Price Cell */}
+                              <td className="py-4">
+                                 <div className="flex flex-col">
+                                    <span className="font-black text-gray-900 tracking-tight text-base">
+                                       Rp {(item.price ?? 0).toLocaleString('id-ID')}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mt-1">Active</span>
+                                 </div>
                               </td>
-                              <td className="py-5 font-mono font-bold">
-                                 <span className={cn(
-                                   "px-3 py-1.5 rounded-lg flex items-center gap-2 w-fit",
-                                   item.stock < 20 ? "bg-rose-50 text-rose-600 border border-rose-100" : "text-gray-600"
-                                 )}>
-                                   {item.stock < 20 && <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />}
-                                   {item.stock} Units
-                                 </span>
+
+                              {/* Stock Cell */}
+                              <td className="py-4">
+                                 <div className="flex items-center">
+                                    {(item.stock ?? 0) < 20 ? (
+                                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 font-mono text-sm font-bold shadow-sm">
+                                          <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                                          {item.stock ?? 0}
+                                       </div>
+                                    ) : (
+                                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 text-gray-600 border border-gray-200 font-mono text-sm font-bold">
+                                          {item.stock ?? 0}
+                                       </div>
+                                    )}
+                                 </div>
                               </td>
-                              <td className="py-5 font-mono font-bold text-indigo-600">Rp {(item.price ?? 0).toLocaleString()}</td>
-                              <td className="py-5">
-                                 <Badge 
-                                   className={cn(
-                                      "rounded-full text-[10px] font-black uppercase tracking-wider px-3 py-1 border-none",
-                                      item.stock < 20
-                                        ? "bg-rose-600 text-white hover:bg-rose-700 shadow-lg shadow-rose-600/20" 
-                                        : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/10"
-                                   )}
-                                 >
-                                    {item.stock < 20 ? 'REPLENISH' : 'OPTIMAL'}
+
+                              {/* AI Status Cell */}
+                              <td className="py-4">
+                                 <Badge className={`rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] ${
+                                    item.ai_label
+                                       ? 'border border-emerald-200 bg-emerald-50 text-emerald-600'
+                                       : 'border border-amber-200 bg-amber-50 text-amber-600'
+                                 }`}>
+                                    {item.ai_label ? (
+                                       <div className="flex items-center gap-1.5">
+                                          <Check className="w-3.5 h-3.5" />
+                                          {item.ai_label}
+                                       </div>
+                                    ) : (
+                                       <div className="flex items-center gap-1.5">
+                                          <AlertTriangle className="w-3.5 h-3.5" />
+                                          Belum Ada
+                                       </div>
+                                    )}
                                  </Badge>
                               </td>
-                              <td className="py-5 text-right pr-2">
-                                 <div className="flex items-center justify-end gap-2">
-                                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)} className="rounded-xl h-8 w-8 text-indigo-600 hover:bg-indigo-50">
-                                       <Edit2 className="w-4 h-4" />
+
+                              {/* Actions Cell */}
+                              <td className="py-4 pr-6">
+                                 <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)}
+                                       className="bg-white hover:bg-indigo-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-indigo-600 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(79,70,229,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
+                                       <Edit2 className="w-5 h-5" strokeWidth={2.5} />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => confirmDelete(item)} className="rounded-xl h-8 w-8 text-rose-600 hover:bg-rose-50">
-                                       <Trash2 className="w-4 h-4" />
+                                    <Button variant="ghost" size="icon" onClick={() => confirmDelete(item)}
+                                       className="bg-white hover:bg-rose-50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[18px] text-rose-600 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(225,29,72,0.15)] transition-all duration-300 h-12 w-12 flex items-center justify-center">
+                                       <Trash2 className="w-5 h-5" strokeWidth={2.5} />
                                     </Button>
                                  </div>
                               </td>
