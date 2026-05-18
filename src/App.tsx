@@ -5,27 +5,27 @@
 
 import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom';
 import * as React from 'react';
-import {AuthProvider, useAuth} from './context/AuthContext';
-import {LocationProvider} from './context/LocationContext';
+import {AuthProvider, useAuth} from './shared/context/AuthContext';
+import {LocationProvider} from './shared/context/LocationContext';
 import { Toaster } from 'sonner';
-import { initializeDatabase } from './lib/database';
-import LoginPage from './pages/LoginPage';
-import DashboardLayout from './components/layout/DashboardLayout';
-import OverviewPage from './pages/OverviewPage';
-import InventoryPage from './pages/InventoryPage';
-import AddInventoryPage from './pages/AddInventoryPage';
-import PromoPage from './pages/PromoPage';
-import CreatePromoPage from './pages/CreatePromoPage';
-import UsersPage from './pages/UsersPage';
-import BroadcastPage from './pages/BroadcastPage';
-import AIAnalysisPage from './pages/AIAnalysisPage';
-import AIInsightsPage from './pages/AIInsightsPage';
-import MasterProductsPage from './pages/MasterProductsPage';
-import AddProductPage from './pages/AddProductPage';
-import BranchInventoryPage from './pages/BranchInventoryPage';
-import BroadcastInboxPage from './pages/BroadcastInboxPage';
-import ProfilePage from './pages/ProfilePage';
-import {TooltipProvider} from './components/ui/tooltip';
+import { initializeDatabase } from './shared/lib/database';
+import LoginPage from './modules/auth/pages/LoginPage';
+import DashboardLayout from './shared/components/layout/DashboardLayout';
+import OverviewPage from './modules/dashboard/pages/OverviewPage';
+import InventoryPage from './modules/inventory/pages/InventoryPage';
+import AddInventoryPage from './modules/inventory/pages/AddInventoryPage';
+import PromoPage from './modules/promos/pages/PromoPage';
+import CreatePromoPage from './modules/promos/pages/CreatePromoPage';
+import UsersPage from './modules/users/pages/UsersPage';
+import BroadcastPage from './modules/broadcasts/pages/BroadcastPage';
+import AIAnalysisPage from './modules/dashboard/pages/AIAnalysisPage';
+import AIInsightsPage from './modules/dashboard/pages/AIInsightsPage';
+import MasterProductsPage from './modules/products/pages/MasterProductsPage';
+import AddProductPage from './modules/products/pages/AddProductPage';
+import MonitorPage from './modules/monitor/pages/MonitorPage';
+import BroadcastInboxPage from './modules/broadcasts/pages/BroadcastInboxPage';
+import ProfilePage from './modules/users/pages/ProfilePage';
+import {TooltipProvider} from './shared/components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
 const ProtectedLayout = ({ children }: { children: React.ReactNode }) => {
@@ -66,7 +66,7 @@ function AppRoutes() {
       
       {/* Shared Routes */}
       <Route path="/overview" element={<ProtectedLayout><OverviewPage /></ProtectedLayout>} />
-      <Route path="/monitor" element={<ProtectedLayout><BranchInventoryPage /></ProtectedLayout>} />
+      <Route path="/monitor" element={<ProtectedLayout><MonitorPage /></ProtectedLayout>} />
       <Route path="/promo" element={<ProtectedLayout><PromoPage /></ProtectedLayout>} />
       <Route path="/promo/create" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
       <Route path="/promo/edit/:id" element={<ProtectedLayout><CreatePromoPage /></ProtectedLayout>} />
