@@ -25,6 +25,7 @@ import {
   Settings,
   Moon,
   Sun,
+  AlertTriangle,
 } from 'lucide-react';
 import {useAuth} from '@/shared/context/AuthContext';
 import {useLocation} from '@/shared/context/LocationContext';
@@ -40,9 +41,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/shared/components/ui/dialog';
 import {ScrollArea} from '@/shared/components/ui/scroll-area';
 import {Separator} from '@/shared/components/ui/separator';
-import {MOCK_LOCATIONS, LocationID, BACKEND_URL} from '@/shared/lib/api';
+import {MOCK_LOCATIONS, LocationID, BACKEND_URL, fetchBackend} from '@/shared/lib/api';
 
 const SUPER_ADMIN_NAV = [
   {path: '/overview', label: 'Overview', icon: LayoutDashboard},
@@ -69,6 +78,102 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
   const {currentLocation, setCurrentLocation, locationName} = useLocation();
   const routeLocation = useRouteLocation();
   const navigate = useNavigate();
+
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [selectedNotif, setSelectedNotif] = useState<any>(null);
+  const [readNotifIds, setReadNotifIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('readNotifIds');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('readNotifIds', JSON.stringify(Array.from(readNotifIds)));
+  }, [readNotifIds]);
+
+  const unreadNotifications = notifications.filter(n => !readNotifIds.has(n.id.toString()));
+  const unreadCount = unreadNotifications.length;
+
+  const loadNotifications = async () => {
+    try {
+      const list: any[] = [];
+
+      // 1. Fetch Broadcasts from Super Admin
+      const bRes = await fetchBackend('getBroadcasts');
+      if (bRes.status === 'success' && Array.isArray(bRes.data)) {
+        bRes.data.forEach((b: any) => {
+          // If branch admin, only show if target matches ALL_BRANCHES or user.location_id
+          if (user?.role === 'branch_admin') {
+            const matchesAudience = b.audience === 'ALL_BRANCHES' || 
+              (b.audience === 'SPECIFIC_BRANCH' && String(b.target_id) === String(user.location_id || ''));
+            if (!matchesAudience) return;
+          }
+          list.push({
+            id: b.id,
+            type: 'broadcast',
+            title: b.subject,
+            preview: b.body,
+            time: new Date(b.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            icon: 'megaphone',
+            isRead: false,
+          });
+        });
+      }
+
+      // 2. Fetch Low Stock Warnings (for branch admin)
+      if (user?.role === 'branch_admin' && currentLocation) {
+        const invRes = await fetchBackend('getInventory', { location_id: currentLocation });
+        if (invRes.status === 'success' && Array.isArray(invRes.data)) {
+          invRes.data.forEach((item: any) => {
+            const stock = Number(item.stock ?? 0);
+            if (stock < 10) {
+              list.push({
+                id: `lowstock-${item.id}`,
+                type: 'lowstock',
+                title: '⚠️ Stok Rendah!',
+                preview: `Stok "${item.products?.name || 'Produk'}" sisa ${stock} pcs. Segera reorder!`,
+                time: 'Live',
+                icon: 'alert',
+                isRead: false,
+              });
+            }
+          });
+        }
+      }
+
+      setNotifications(list);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [user, currentLocation]);
+
+  const markAllAsRead = () => {
+    setReadNotifIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(n.id.toString()));
+      return next;
+    });
+  };
+
+  const markAsRead = (id: string) => {
+    setReadNotifIds(prev => {
+      const next = new Set(prev);
+      next.add(id.toString());
+      return next;
+    });
+  };
 
   const isSuperAdmin = user?.role === 'super_admin';
   const navItems = isSuperAdmin ? SUPER_ADMIN_NAV : BRANCH_ADMIN_NAV;
@@ -236,38 +341,92 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
           <div className="flex items-center gap-4 text-right">
 
             <div className="flex items-center gap-2">
-               {!isSuperAdmin && (
-                 <DropdownMenu>
-                    <DropdownMenuTrigger className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-2xl relative text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 outline-none")}>
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-indigo-600 rounded-full border-2 border-white" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-80 rounded-3xl p-4 bg-white border-gray-100 shadow-2xl space-y-4">
-                       <DropdownMenuLabel className="font-black text-gray-900 tracking-tighter uppercase text-xs tracking-widest text-indigo-600">Broadcast Center</DropdownMenuLabel>
-                       <div className="space-y-3">
-                          {[
-                             { title: 'System Maintenance', time: '2h ago', preview: 'Cloud synchronization will be offline for 15 minutes.' },
-                             { title: 'New Stock Guidelines', time: '5h ago', preview: 'Mandatory 4-sided photos required for all new intakes.' }
-                          ].map((notif, i) => (
-                             <div key={i} className="p-3 bg-gray-50 rounded-2xl hover:bg-indigo-50/50 transition-colors cursor-pointer group">
-                                <div className="flex justify-between items-start mb-1">
-                                   <span className="text-xs font-black text-gray-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{notif.title}</span>
-                                   <span className="text-[10px] font-bold text-gray-400">{notif.time}</span>
-                                </div>
-                                <p className="text-[11px] text-gray-500 font-medium leading-tight">{notif.preview}</p>
-                             </div>
-                          ))}
+              <div className="relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setIsNotifOpen(!isNotifOpen)}
+                  className={cn(
+                    "rounded-2xl relative hover:bg-indigo-50 transition-all outline-none",
+                    isNotifOpen ? "text-indigo-600 bg-indigo-50" : "text-gray-400 hover:text-indigo-600"
+                  )}
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-2 right-2 w-4 h-4 bg-rose-600 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+
+                {isNotifOpen && (
+                  <>
+                    {/* Backdrop overlay to close when clicking outside */}
+                    <div className="fixed inset-0 z-45" onClick={() => setIsNotifOpen(false)} />
+                    
+                    {/* Floating Custom Notification Card */}
+                    <div className="absolute right-0 mt-2 w-80 rounded-3xl p-4 bg-white border border-gray-100 shadow-2xl space-y-4 z-50 text-left font-sans animate-in fade-in slide-in-from-top-2 duration-200">
+                       <div className="flex justify-between items-center">
+                          <span className="font-black text-gray-900 uppercase text-[10px] tracking-widest text-indigo-600">
+                            Communication Center ({notifications.length})
+                          </span>
+                          {unreadCount > 0 && (
+                            <button onClick={markAllAsRead} className="text-[10px] font-black uppercase text-indigo-500 hover:text-indigo-700 transition border-none bg-transparent">
+                              Tandai Dibaca
+                            </button>
+                          )}
                        </div>
-                       <Button 
-                         variant="ghost" 
-                         onClick={() => navigate('/inbox')}
-                         className="w-full text-xs font-bold text-gray-400 h-10 hover:text-indigo-600 rounded-xl"
-                       >
-                         View All Notifications
-                       </Button>
-                    </DropdownMenuContent>
-                 </DropdownMenu>
-               )}
+                       <div className="border-t border-gray-100 my-2" />
+                       <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                          {unreadNotifications.length > 0 ? (
+                            unreadNotifications.map((notif) => {
+                              const isLowStock = notif.type === 'lowstock';
+                              return (
+                                <div 
+                                  key={notif.id} 
+                                  onClick={() => {
+                                    setSelectedNotif(notif);
+                                    setIsNotifOpen(false);
+                                  }}
+                                  className={cn(
+                                    "p-3 rounded-2xl border transition-colors cursor-pointer group flex gap-3",
+                                    isLowStock 
+                                      ? "bg-rose-50/50 hover:bg-rose-50 border-rose-100/50" 
+                                      : "bg-indigo-50/50 hover:bg-indigo-50 border-indigo-100/50"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                                    isLowStock ? "bg-rose-500 text-white" : "bg-indigo-600 text-white"
+                                  )}>
+                                    {isLowStock ? <AlertTriangle className="w-4 h-4" /> : <Megaphone className="w-4 h-4" />}
+                                  </div>
+                                  <div className="space-y-1 min-w-0 flex-1">
+                                    <div className="flex justify-between items-start mb-0.5">
+                                       <span className={cn(
+                                         "text-xs font-black truncate leading-tight uppercase tracking-tight",
+                                         isLowStock ? "text-rose-700" : "text-indigo-900"
+                                       )}>
+                                         {notif.title}
+                                       </span>
+                                       <span className="text-[8px] font-bold text-gray-400 shrink-0 font-mono pl-1">{notif.time}</span>
+                                    </div>
+                                    <p className="text-[11px] text-gray-600 font-semibold leading-relaxed break-words">{notif.preview}</p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="text-center py-8">
+                              <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                              <p className="text-xs font-black uppercase tracking-widest text-gray-400">Tidak ada notifikasi baru</p>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
                 <Button 
                   variant="ghost" 
@@ -301,6 +460,42 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
           </div>
         </ScrollArea>
       </main>
+
+      <Dialog open={!!selectedNotif} onOpenChange={(open) => {
+        if (!open) {
+          if (selectedNotif) {
+             markAsRead(selectedNotif.id.toString());
+          }
+          setSelectedNotif(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedNotif?.type === 'lowstock' ? (
+                <AlertTriangle className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Megaphone className="w-5 h-5 text-indigo-500" />
+              )}
+              {selectedNotif?.title}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedNotif?.time}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNotif?.preview}</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => {
+               if (selectedNotif) markAsRead(selectedNotif.id.toString());
+               setSelectedNotif(null);
+            }}>
+              Tandai Dibaca & Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

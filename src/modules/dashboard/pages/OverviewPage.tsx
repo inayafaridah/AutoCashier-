@@ -17,6 +17,7 @@ import {
   Globe,
   Tag,
   Search,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -80,6 +81,24 @@ export default function OverviewPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchLowStock = async () => {
+      if (user?.role === 'branch_admin' && currentLocation) {
+        try {
+          const res = await fetchBackend('getInventory', { location_id: currentLocation });
+          if (res.status === 'success' && Array.isArray(res.data)) {
+            const low = res.data.filter((item: any) => Number(item.stock ?? 0) < 10);
+            setLowStockItems(low);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    fetchLowStock();
+  }, [user, currentLocation]);
 
   useEffect(() => {
     const loadOverview = async () => {
@@ -366,6 +385,33 @@ export default function OverviewPage() {
         isLoading={isExporting}
         branchName={locationName}
       />
+
+      {/* Peringatan Stok Rendah Banner */}
+      {user?.role === 'branch_admin' && lowStockItems.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-rose-50 border border-rose-100 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md shadow-rose-500/20">
+              <AlertTriangle className="w-6 h-6 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-rose-900 uppercase tracking-tight">⚠️ Perhatian: Sinyal Stok Kritis!</h4>
+              <p className="text-xs text-rose-700 font-semibold mt-1">
+                Terdapat <span className="underline font-bold">{lowStockItems.length} produk</span> dengan kuantitas stok di bawah 10 pcs. Segera lakukan penambahan stok!
+              </p>
+            </div>
+          </div>
+          <Button 
+            onClick={() => navigate('/inventory')}
+            className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider px-5 py-3 shadow-lg shadow-rose-600/20 border-none shrink-0"
+          >
+            Kelola Stok
+          </Button>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, i) => {
