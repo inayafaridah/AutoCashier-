@@ -182,18 +182,28 @@ export default function OverviewPage() {
   const handleExportPDF = () => {
     setIsModalOpen(false);
     setIsExporting(true);
-    toast.info(`Report for ${locationName} is being generated...`, {
-      description: "Compiling financial velocity and stock metadata.",
-      duration: 3000,
-    });
-    
+
+    // Snapshot the current data into sessionStorage so ReportPage can read it
+    const snapshot = {
+      data,
+      branchName:    locationName,
+      timeframe,
+      selectedMonth,
+      selectedYear,
+      generatedAt:   new Date().toLocaleString('id-ID', {
+        day:    '2-digit',
+        month:  'long',
+        year:   'numeric',
+        hour:   '2-digit',
+        minute: '2-digit',
+      }),
+    };
+    sessionStorage.setItem('report_snapshot', JSON.stringify(snapshot));
+
     setTimeout(() => {
       setIsExporting(false);
-      toast.success("Report Ready", {
-        description: "Dashboard view has been exported to PDF.",
-      });
-      window.print();
-    }, 1500);
+      navigate('/report');
+    }, 600);
   };
 
   const getVsLabel = () => {

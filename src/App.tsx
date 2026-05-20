@@ -26,6 +26,7 @@ import MonitorPage from './modules/monitor/pages/MonitorPage';
 import BroadcastInboxPage from './modules/broadcasts/pages/BroadcastInboxPage';
 import ProfilePage from './modules/users/pages/ProfilePage';
 import TransactionsPage from './modules/transactions/pages/TransactionsPage';
+import ReportPage from './modules/dashboard/pages/ReportPage';
 import {TooltipProvider} from './shared/components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
@@ -90,6 +91,9 @@ function AppRoutes() {
 
       {/* Transactions — Super Admin sees all, Branch Admin sees their branch */}
       <Route path="/transactions" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin', 'branch_admin', 'admin']}><TransactionsPage /></RoleGuard></ProtectedLayout>} />
+
+      {/* Report — standalone print view, no sidebar */}
+      <Route path="/report" element={<AuthGuard><ReportPage /></AuthGuard>} />
 
       <Route path="/" element={<Navigate to="/overview" replace />} />
     </Routes>

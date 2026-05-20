@@ -4,9 +4,86 @@ import { isUserTargeted } from '../promos/promo.service';
 
 const db = supabaseAdmin || supabase;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns current time formatted as a WIB (UTC+7) timestamp string. */
+function getWIBTimestamp(): string {
+  const now = new Date();
+  const wib = new Date(now.getTime() + 7 * 3_600_000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${wib.getFullYear()}-${pad(wib.getMonth() + 1)}-${pad(wib.getDate())} ` +
+    `${pad(wib.getHours())}:${pad(wib.getMinutes())}:${pad(wib.getSeconds())}`
+  );
+}
+
+/** Generates a prefixed transaction code, e.g. INV-260517-4821. */
+function generateTransactionCode(prefix: string): string {
+  const now = new Date();
+  const yy = now.getFullYear().toString().slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${yy}${mm}${dd}-${rand}`;
+}
+
+/** Upserts the member_points balance, crediting 1% of the purchase total. */
+async function creditMemberPoints(userId: string, totalPrice: number): Promise<void> {
+  if (!userId || totalPrice <= 0) return;
+
+  const pointsEarned = Math.floor(totalPrice * 0.01);
+  if (pointsEarned <= 0) return;
+
+  const { data: existing } = await db
+    .from('member_points')
+    .select('id, balance')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existing) {
+    await db
+      .from('member_points')
+      .update({ balance: existing.balance + pointsEarned, updated_at: new Date().toISOString() })
+      .eq('user_id', userId);
+  } else {
+    await db
+      .from('member_points')
+      .insert({ user_id: userId, balance: pointsEarned, updated_at: new Date().toISOString() });
+  }
+}
+
+/** Deducts points from the member's balance. Returns an error if balance is insufficient. */
+async function debitMemberPoints(
+  userId: string,
+  points: number,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!userId || points <= 0) return { ok: true };
+
+  const { data: existing } = await db
+    .from('member_points')
+    .select('id, balance')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!existing || existing.balance < points) {
+    return { ok: false, error: 'INSUFFICIENT_POINTS' };
+  }
+
+  await db
+    .from('member_points')
+    .update({ balance: existing.balance - points, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+
+  return { ok: true };
+}
+
 // ─── GET /api/transactions ────────────────────────────────────────────────────
-// Super admin: returns all transactions, optionally filtered by branch_id query param
-// Branch admin: returns only transactions for their branch (from JWT)
+
+/**
+ * Returns a paginated list of transactions.
+ * - branch_admin: automatically scoped to their branch via JWT.
+ * - super_admin: all branches, optionally filtered by ?branch_id=.
+ */
 export async function getTransactions(req: Request, res: Response) {
   try {
     const user = (req as any).user;
@@ -26,6 +103,10 @@ export async function getTransactions(req: Request, res: Response) {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 50));
     const offset = (pageNum - 1) * limitNum;
 
+    // sort: 'desc' (terbaru) | 'asc' (terlama) | 'highest' (terbesar) | 'lowest' (terkecil)
+    const sortField     = (sort === 'highest' || sort === 'lowest') ? 'total_price' : 'created_at';
+    const ascending     = (sort === 'asc' || sort === 'lowest');
+
     let query = db
       .from('transactions')
       .select(
@@ -42,35 +123,18 @@ export async function getTransactions(req: Request, res: Response) {
         receipt_url,
         branch_id,
         created_at,
-        cashier:cashier_id (
-          id,
-          username,
-          full_name
-        ),
-        member:member_id (
-          id,
-          username,
-          full_name
-        ),
+        cashier:cashier_id ( id, username, full_name ),
+        member:member_id   ( id, username, full_name ),
         transaction_items (
-          id,
-          quantity,
-          unit_price,
-          subtotal,
-          product_id,
-          products (
-            id,
-            name,
-            sku,
-            category
-          )
+          id, quantity, unit_price, subtotal, product_id,
+          products ( id, name, sku, category )
         )
       `,
-        { count: 'exact' }
+        { count: 'exact' },
       )
-      .order('created_at', { ascending: sort === 'asc' });
+      .order(sortField, { ascending });
 
-    // ── Role-based branch filtering ──────────────────────────────────────────
+    // Role-based branch scoping
     if (user.role === 'branch_admin') {
       if (!user.branch_id) {
         return res.status(403).json({
@@ -83,18 +147,17 @@ export async function getTransactions(req: Request, res: Response) {
       query = query.eq('branch_id', branch_id as string);
     }
 
-    // ── Optional filters ─────────────────────────────────────────────────────
-    if (status) query = query.eq('status', status as string);
-    if (payment_method) query = query.eq('payment_method', payment_method as string);
-    if (start_date) query = query.gte('created_at', start_date as string);
-    if (end_date) query = query.lte('created_at', end_date as string);
+    // Optional filters
+    if (status)          query = query.eq('status', status as string);
+    if (payment_method)  query = query.eq('payment_method', payment_method as string);
+    if (start_date)      query = query.gte('created_at', start_date as string);
+    if (end_date)        query = query.lte('created_at', end_date as string);
     if (search) {
       query = query.or(
-        `invoice_number.ilike.%${search}%,order_number.ilike.%${search}%`
+        `invoice_number.ilike.%${search}%,order_number.ilike.%${search}%`,
       );
     }
 
-    // ── Pagination ────────────────────────────────────────────────────────────
     query = query.range(offset, offset + limitNum - 1);
 
     const { data, error, count } = await query;
@@ -102,7 +165,7 @@ export async function getTransactions(req: Request, res: Response) {
 
     return res.json({
       status: 'success',
-      data: data || [],
+      data: data ?? [],
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -111,127 +174,33 @@ export async function getTransactions(req: Request, res: Response) {
       },
     });
   } catch (err: any) {
-    console.error('[getTransactions] Error:', err);
+    console.error('[getTransactions]', err);
     return res.status(500).json({ status: 'error', error: err.message });
   }
 }
 
-/**
- * Adds 1% of total_price to member_points for a given user.
- * Creates the record if it doesn't exist, otherwise increments balance.
- */
-async function addMemberPoints(userId: string, totalPrice: number) {
-  if (!userId || !totalPrice) return;
-
-  const pointsEarned = Math.floor(totalPrice * 0.01); // 1% rounded down
-  if (pointsEarned <= 0) return;
-
-  // Check if user already has a member_points record
-  const { data: existing } = await db
-    .from('member_points')
-    .select('id, balance')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (existing) {
-    // Update existing balance
-    await db
-      .from('member_points')
-      .update({
-        balance: existing.balance + pointsEarned,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId);
-  } else {
-    // Create new member_points record
-    await db
-      .from('member_points')
-      .insert({
-        user_id: userId,
-        balance: pointsEarned,
-        updated_at: new Date().toISOString()
-      });
-  }
-
-  console.log(`[checkout] +${pointsEarned} points added for user ${userId}`);
-}
-
-/**
- * Deducts points from member_points (when customer uses points to pay).
- * Returns error if insufficient balance.
- */
-async function deductMemberPoints(userId: string, pointsToUse: number): Promise<{ ok: boolean; error?: string }> {
-  if (!userId || !pointsToUse || pointsToUse <= 0) return { ok: true };
-
-  const { data: existing } = await db
-    .from('member_points')
-    .select('id, balance')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (!existing || existing.balance < pointsToUse) {
-    return { ok: false, error: 'INSUFFICIENT_POINTS' };
-  }
-
-  await db
-    .from('member_points')
-    .update({
-      balance: existing.balance - pointsToUse,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId);
-
-  console.log(`[checkout] -${pointsToUse} points deducted for user ${userId}`);
-  return { ok: true };
-}
-
-/**
- * Generates a professional transaction code.
- * Example: INV-260517-4821
- */
-function generateCode(prefix: string): string {
-  const date = new Date();
-  const d = date.getDate().toString().padStart(2, '0');
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  const y = date.getFullYear().toString().slice(-2);
-  const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
-  return `${prefix}-${y}${m}${d}-${random}`;
-}
-
-function getWIBTime() {
-  const d = new Date();
-  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  const wib = new Date(utc + (3600000 * 7));
-  return wib.getFullYear() + '-' +
-    String(wib.getMonth() + 1).padStart(2, '0') + '-' +
-    String(wib.getDate()).padStart(2, '0') + ' ' +
-    String(wib.getHours()).padStart(2, '0') + ':' +
-    String(wib.getMinutes()).padStart(2, '0') + ':' +
-    String(wib.getSeconds()).padStart(2, '0');
-}
+// ─── POST /api/checkout ───────────────────────────────────────────────────────
 
 export async function checkout(req: Request, res: Response) {
   try {
     const { header, items } = req.body;
-
-    // --- Member Points: Deduct if used ---
-    const memberUserId: string | null = header.member_user_id || null;
+    const memberId: string | null = header.member_user_id || null;
     const pointsUsed: number = header.points_used || 0;
 
-    if (memberUserId && pointsUsed > 0) {
-      const deductResult = await deductMemberPoints(memberUserId, pointsUsed);
-      if (!deductResult.ok) {
-        return res.status(400).json({ status: 'error', error: deductResult.error });
+    // Deduct member points if used
+    if (memberId && pointsUsed > 0) {
+      const debitResult = await debitMemberPoints(memberId, pointsUsed);
+      if (!debitResult.ok) {
+        return res.status(400).json({ status: 'error', error: debitResult.error });
       }
     }
 
-    // Auto-generate professional codes if not provided by frontend
-    const invoiceNumber = header.invoice_number || generateCode('INV');
-    const orderNumber = header.order_number || generateCode('ORD');
+    const invoiceNumber = header.invoice_number || generateTransactionCode('INV');
+    const orderNumber   = header.order_number   || generateTransactionCode('ORD');
 
-    // --- Validate Promo Code if provided ---
+    // Validate promo if provided
     const promoId: string | null = header.promo_id || null;
-    let validPromo: any = null;
+    let validatedPromo: any = null;
 
     if (promoId) {
       const { data: promo, error: promoErr } = await db
@@ -244,127 +213,125 @@ export async function checkout(req: Request, res: Response) {
         return res.status(400).json({ status: 'error', error: 'INVALID_PROMO' });
       }
 
+      const now = new Date();
+
       if (promo.is_active === false) {
         return res.status(400).json({ status: 'error', error: 'PROMO_INACTIVE' });
       }
-
-      const now = new Date();
       if (promo.starts_at && new Date(promo.starts_at) > now) {
         return res.status(400).json({ status: 'error', error: 'PROMO_NOT_STARTED' });
       }
       if (promo.expires_at && new Date(promo.expires_at) < now) {
         return res.status(400).json({ status: 'error', error: 'PROMO_EXPIRED' });
       }
-
       if (promo.min_purchase && header.total_price < promo.min_purchase) {
         return res.status(400).json({ status: 'error', error: 'MIN_PURCHASE_NOT_MET' });
       }
-
       if (promo.usage_limit && promo.usage_count >= promo.usage_limit) {
         return res.status(400).json({ status: 'error', error: 'PROMO_QUOTA_FULL' });
       }
 
-      if (promo.per_user_limit && memberUserId) {
+      if (promo.per_user_limit && memberId) {
         const { count } = await db
           .from('promo_usages')
           .select('*', { count: 'exact', head: true })
           .eq('promo_id', promoId)
-          .eq('user_id', memberUserId);
+          .eq('user_id', memberId);
 
         if (count && count >= promo.per_user_limit) {
           return res.status(400).json({ status: 'error', error: 'USER_PROMO_LIMIT_REACHED' });
         }
       }
 
-      // Check if promo targets specific users
-      const isTargeted = await isUserTargeted(promoId, memberUserId);
+      const isTargeted = await isUserTargeted(promoId, memberId);
       if (!isTargeted) {
         return res.status(403).json({ status: 'error', error: 'USER_NOT_TARGETED' });
       }
 
-      validPromo = promo;
+      validatedPromo = promo;
     }
 
-    // 1. Create transaction header
-    const { data: trans, error: tErr } = await db.from('transactions').insert({
-      order_number: orderNumber,
-      invoice_number: invoiceNumber,
-      total_price: header.total_price,
-      payment_method: header.payment_method,
-      status: header.status || 'completed',
-      cashier_id: header.cashier_id || null,
-      member_id: memberUserId || null,
-      receipt_url: header.receipt_url || null,
-      payment_status: header.payment_status || 'paid',
-      created_at: getWIBTime()
-    }).select().single();
+    // Insert transaction header
+    const { data: transaction, error: txError } = await db
+      .from('transactions')
+      .insert({
+        order_number:   orderNumber,
+        invoice_number: invoiceNumber,
+        total_price:    header.total_price,
+        payment_method: header.payment_method,
+        status:         header.status || 'completed',
+        cashier_id:     header.cashier_id || null,
+        member_id:      memberId,
+        receipt_url:    header.receipt_url || null,
+        payment_status: header.payment_status || 'paid',
+        created_at:     getWIBTimestamp(),
+      })
+      .select()
+      .single();
 
-    if (tErr) {
-      console.error('[checkout] Transaction insert error:', tErr);
-      throw tErr;
+    if (txError) {
+      console.error('[checkout] transaction insert:', txError);
+      throw txError;
     }
 
-    // 2. Create transaction items
+    // Insert transaction items
     const itemRows = items.map((item: any) => ({
-      transaction_id: trans.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price ?? item.price ?? 0,
-      subtotal: item.subtotal ?? (item.quantity * (item.unit_price ?? item.price ?? 0)),
-      created_at: getWIBTime()
+      transaction_id: transaction.id,
+      product_id:     item.product_id,
+      quantity:       item.quantity,
+      unit_price:     item.unit_price ?? item.price ?? 0,
+      subtotal:       item.subtotal ?? item.quantity * (item.unit_price ?? item.price ?? 0),
+      created_at:     getWIBTimestamp(),
     }));
 
-    const { error: iErr } = await db.from('transaction_items').insert(itemRows);
-    if (iErr) {
-      console.error('[checkout] Transaction items insert error:', iErr);
-      throw iErr;
+    const { error: itemsError } = await db.from('transaction_items').insert(itemRows);
+    if (itemsError) {
+      console.error('[checkout] items insert:', itemsError);
+      throw itemsError;
     }
 
-    // 3. Deduct stock
+    // Deduct stock for each item
     for (const item of items) {
       await db.rpc('deduct_stock', { p_id: item.product_id, qty: item.quantity });
     }
 
-    // --- Member Points: Add 1% earned points ---
-    if (memberUserId && header.total_price > 0) {
-      await addMemberPoints(memberUserId, header.total_price);
+    // Credit member points (1% of total)
+    if (memberId && header.total_price > 0) {
+      await creditMemberPoints(memberId, header.total_price);
     }
 
-    // --- Record Promo Usage ---
-    if (validPromo) {
+    // Record promo usage
+    if (validatedPromo) {
       await db.from('promo_usages').insert({
-        promo_id: validPromo.id,
-        user_id: memberUserId || null,
-        order_id: trans.id
+        promo_id: validatedPromo.id,
+        user_id:  memberId ?? null,
+        order_id: transaction.id,
       });
-      await db.rpc('increment_promo_usage', { p_promo_id: validPromo.id });
+      await db.rpc('increment_promo_usage', { p_promo_id: validatedPromo.id });
     }
 
-    // Calculate points earned for response
-    const pointsEarned = memberUserId ? Math.floor((header.total_price || 0) * 0.01) : 0;
+    const pointsEarned = memberId ? Math.floor((header.total_price || 0) * 0.01) : 0;
 
     return res.json({
       status: 'success',
-      data: {
-        ...trans,
-        points_earned: pointsEarned,
-        points_used: pointsUsed,
-      }
+      data: { ...transaction, points_earned: pointsEarned, points_used: pointsUsed },
     });
   } catch (err: any) {
-    console.error('[checkout] Error:', err);
+    console.error('[checkout]', err);
     return res.status(500).json({ status: 'error', error: err.message });
   }
 }
 
-export async function getStoreSettings(req: Request, res: Response) {
+// ─── GET /api/store-settings ──────────────────────────────────────────────────
+
+export async function getStoreSettings(_req: Request, res: Response) {
   return res.json({
     status: 'success',
     data: {
-      store_name: 'AutoCashier AI Store',
-      currency: 'IDR',
-      points_rate: 0.01, // 1% of total purchase
-      points_currency_rate: 1, // 1 point = Rp 1
-    }
+      store_name:           'AutoCashier AI Store',
+      currency:             'IDR',
+      points_rate:          0.01, // 1% of purchase total
+      points_currency_rate: 1,    // 1 point = Rp 1
+    },
   });
 }

@@ -4,53 +4,42 @@ import authRoutes from '../modules/auth/auth.routes';
 import productsRoutes from '../modules/products/products.routes';
 import debugRoutes from '../modules/system/debug.routes';
 import profileRoutes from '../modules/users/profile.routes';
-
 import overviewRoutes from '../modules/dashboard/overview.routes';
 import promoRoutes from '../modules/promos/promos.routes';
+import monitorRoutes from '../modules/monitor/monitor.routes';
+import branchInventoryRoutes from '../modules/inventory/inventory.routes';
+import { requireAuth } from '../middleware/authMiddleware';
+import { requireRole } from '../middleware/rbacMiddleware';
 import * as userController from '../modules/users/user.controller';
 import * as branchInventoryController from '../modules/inventory/branchInventory.controller';
-import branchAdminInventoryRoutes from '../modules/inventory/inventory.routes'; // <-- NEW
 import * as broadcastController from '../modules/broadcasts/broadcast.controller';
 import * as branchController from '../modules/inventory/branch.controller';
 import * as transactionController from '../modules/transactions/transaction.controller';
-import monitorRoutes from '../modules/monitor/monitor.routes';
-import { requireAuth } from '../middleware/authMiddleware';
-import { requireRole } from '../middleware/rbacMiddleware';
-
 
 const router = Router();
 
+// ── System ────────────────────────────────────────────────────────────────────
 router.get('/health', healthController);
-
-router.use('/auth', authRoutes);
-
-router.use('/products', productsRoutes);
-
 router.use('/debug', debugRoutes);
 
+// ── Auth & Profile ────────────────────────────────────────────────────────────
+router.use('/auth', authRoutes);
 router.use('/profile', profileRoutes);
 
+// ── Products & Catalog ────────────────────────────────────────────────────────
+router.use('/products', productsRoutes);
 
-
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 router.use('/overview', overviewRoutes);
-router.use('/promos', promoRoutes);
 router.use('/monitor', monitorRoutes);
 
-// Branch Admin RBAC Routes
-router.use('/inventory', branchAdminInventoryRoutes);
+// ── Promos ────────────────────────────────────────────────────────────────────
+router.use('/promos', promoRoutes);
 
-// Broadcasts
-router.get('/broadcasts', broadcastController.getBroadcasts);
-router.post('/broadcasts', broadcastController.sendBroadcast);
+// ── Inventory (RBAC: branch_admin / super_admin) ──────────────────────────────
+router.use('/inventory', branchInventoryRoutes);
 
-// Users
-router.get('/users', userController.getUsers);
-router.post('/users', userController.createUser);
-router.patch('/users/:id', userController.updateUser);
-router.delete('/users/:id', userController.deleteUser);
-router.post('/users/:id/promos', userController.assignMemberPromo);
-
-// Legacy Branch Inventory (For backwards compatibility if needed)
+// ── Branch Inventory (legacy — kept for backwards compatibility) ───────────────
 router.get('/branches', branchController.getBranches);
 router.get('/branch-inventory', branchInventoryController.listBranchSummaries);
 router.get('/branch-inventory/:id/movements', branchInventoryController.getMovements);
@@ -60,11 +49,25 @@ router.post('/branch-inventory/adjust', branchInventoryController.adjustInventor
 router.patch('/branch-inventory/:id', branchInventoryController.updateInventory);
 router.delete('/branch-inventory/:id', branchInventoryController.deleteInventory);
 
-// Transactions & Settings
-router.get('/transactions', requireAuth, requireRole(['super_admin', 'branch_admin', 'admin']), transactionController.getTransactions);
+// ── Broadcasts ────────────────────────────────────────────────────────────────
+router.get('/broadcasts', broadcastController.getBroadcasts);
+router.post('/broadcasts', broadcastController.sendBroadcast);
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+router.get('/users', userController.getUsers);
+router.post('/users', userController.createUser);
+router.patch('/users/:id', userController.updateUser);
+router.delete('/users/:id', userController.deleteUser);
+router.post('/users/:id/promos', userController.assignMemberPromo);
+
+// ── Transactions ──────────────────────────────────────────────────────────────
+router.get(
+  '/transactions',
+  requireAuth,
+  requireRole(['super_admin', 'branch_admin', 'admin']),
+  transactionController.getTransactions,
+);
 router.post('/checkout', transactionController.checkout);
 router.get('/store-settings', transactionController.getStoreSettings);
-
-
 
 export default router;
