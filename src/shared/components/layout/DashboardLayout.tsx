@@ -26,6 +26,7 @@ import {
   Moon,
   Sun,
   AlertTriangle,
+  ShoppingCart,
 } from 'lucide-react';
 import {useAuth} from '@/shared/context/AuthContext';
 import {useLocation} from '@/shared/context/LocationContext';
@@ -57,6 +58,7 @@ const SUPER_ADMIN_NAV = [
   {path: '/overview', label: 'Overview', icon: LayoutDashboard},
   {path: '/catalog', label: 'Master Products', icon: Package},
   {path: '/promo', label: 'Promo', icon: Tag},
+  {path: '/transactions', label: 'Transactions', icon: ShoppingCart},
   {path: '/monitor', label: 'Branch Inventory', icon: MonitorCheck},
   {path: '/users', label: 'User Management', icon: Users},
   {path: '/broadcast', label: 'Broadcast', icon: Megaphone},
@@ -67,6 +69,7 @@ const BRANCH_ADMIN_NAV = [
   {path: '/overview', label: 'Overview', icon: LayoutDashboard},
   {path: '/inventory', label: 'Inventory', icon: Archive},
   {path: '/promo', label: 'Promo', icon: Tag},
+  {path: '/transactions', label: 'Transactions', icon: ShoppingCart},
   {path: '/users', label: 'User Management', icon: Users},
   {path: '/analysis', label: 'AI Insights', icon: BrainCircuit},
 ];
@@ -347,13 +350,13 @@ export default function DashboardLayout({children}: {children: ReactNode}) {
                   size="icon" 
                   onClick={() => setIsNotifOpen(!isNotifOpen)}
                   className={cn(
-                    "rounded-2xl relative hover:bg-indigo-50 transition-all outline-none",
+                    "w-11 h-11 rounded-2xl relative hover:bg-indigo-50 transition-all outline-none",
                     isNotifOpen ? "text-indigo-600 bg-indigo-50" : "text-gray-400 hover:text-indigo-600"
                   )}
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-6 h-6" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-2 right-2 w-4 h-4 bg-rose-600 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-rose-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-pulse">
                       {unreadCount}
                     </span>
                   )}

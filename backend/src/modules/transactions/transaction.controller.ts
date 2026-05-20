@@ -4,6 +4,118 @@ import { isUserTargeted } from '../promos/promo.service';
 
 const db = supabaseAdmin || supabase;
 
+// ─── GET /api/transactions ────────────────────────────────────────────────────
+// Super admin: returns all transactions, optionally filtered by branch_id query param
+// Branch admin: returns only transactions for their branch (from JWT)
+export async function getTransactions(req: Request, res: Response) {
+  try {
+    const user = (req as any).user;
+    const {
+      branch_id,
+      status,
+      payment_method,
+      start_date,
+      end_date,
+      sort,
+      search,
+      page = '1',
+      limit = '50',
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    let query = db
+      .from('transactions')
+      .select(
+        `
+        id,
+        order_number,
+        invoice_number,
+        total_price,
+        payment_method,
+        status,
+        payment_status,
+        cashier_id,
+        member_id,
+        receipt_url,
+        branch_id,
+        created_at,
+        cashier:cashier_id (
+          id,
+          username,
+          full_name
+        ),
+        member:member_id (
+          id,
+          username,
+          full_name
+        ),
+        transaction_items (
+          id,
+          quantity,
+          unit_price,
+          subtotal,
+          product_id,
+          products (
+            id,
+            name,
+            sku,
+            category
+          )
+        )
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: sort === 'asc' });
+
+    // ── Role-based branch filtering ──────────────────────────────────────────
+    if (user.role === 'branch_admin') {
+      if (!user.branch_id) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Branch ID not found in token. Please log in again.',
+        });
+      }
+      query = query.eq('branch_id', user.branch_id);
+    } else if (user.role === 'super_admin' && branch_id && branch_id !== 'ALL') {
+      query = query.eq('branch_id', branch_id as string);
+    }
+
+    // ── Optional filters ─────────────────────────────────────────────────────
+    if (status) query = query.eq('status', status as string);
+    if (payment_method) query = query.eq('payment_method', payment_method as string);
+    if (start_date) query = query.gte('created_at', start_date as string);
+    if (end_date) query = query.lte('created_at', end_date as string);
+    if (search) {
+      query = query.or(
+        `invoice_number.ilike.%${search}%,order_number.ilike.%${search}%`
+      );
+    }
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    query = query.range(offset, offset + limitNum - 1);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    return res.json({
+      status: 'success',
+      data: data || [],
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limitNum),
+      },
+    });
+  } catch (err: any) {
+    console.error('[getTransactions] Error:', err);
+    return res.status(500).json({ status: 'error', error: err.message });
+  }
+}
+
 /**
  * Adds 1% of total_price to member_points for a given user.
  * Creates the record if it doesn't exist, otherwise increments balance.
@@ -181,6 +293,7 @@ export async function checkout(req: Request, res: Response) {
       payment_method: header.payment_method,
       status: header.status || 'completed',
       cashier_id: header.cashier_id || null,
+      member_id: memberUserId || null,
       receipt_url: header.receipt_url || null,
       payment_status: header.payment_status || 'paid',
       created_at: getWIBTime()

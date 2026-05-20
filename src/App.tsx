@@ -25,6 +25,7 @@ import AddProductPage from './modules/products/pages/AddProductPage';
 import MonitorPage from './modules/monitor/pages/MonitorPage';
 import BroadcastInboxPage from './modules/broadcasts/pages/BroadcastInboxPage';
 import ProfilePage from './modules/users/pages/ProfilePage';
+import TransactionsPage from './modules/transactions/pages/TransactionsPage';
 import {TooltipProvider} from './shared/components/ui/tooltip';
 
 // Wrapper for layout with Sidebar/Header
@@ -86,6 +87,9 @@ function AppRoutes() {
       <Route path="/inventory" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><InventoryPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/inventory/add" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><AddInventoryPage /></RoleGuard></ProtectedLayout>} />
       <Route path="/analysis" element={<ProtectedLayout><RoleGuard allowedRoles={['admin', 'branch_admin']}><AIAnalysisPage /></RoleGuard></ProtectedLayout>} />
+
+      {/* Transactions — Super Admin sees all, Branch Admin sees their branch */}
+      <Route path="/transactions" element={<ProtectedLayout><RoleGuard allowedRoles={['super_admin', 'branch_admin', 'admin']}><TransactionsPage /></RoleGuard></ProtectedLayout>} />
 
       <Route path="/" element={<Navigate to="/overview" replace />} />
     </Routes>

@@ -69,6 +69,21 @@ export async function fetchBackend(action: string, data: any = {}) {
         };
       }
 
+      case 'getTransactions': {
+        const params = new URLSearchParams();
+        if (data.branch_id && data.branch_id !== 'ALL') params.set('branch_id', data.branch_id);
+        if (data.status) params.set('status', data.status);
+        if (data.payment_method) params.set('payment_method', data.payment_method);
+        if (data.start_date) params.set('start_date', data.start_date);
+        if (data.end_date) params.set('end_date', data.end_date);
+        if (data.search) params.set('search', data.search);
+        if (data.sort) params.set('sort', data.sort);
+        if (data.page) params.set('page', String(data.page));
+        if (data.limit) params.set('limit', String(data.limit));
+        const response = await fetch(`${BACKEND_URL}/api/transactions?${params.toString()}`, { headers });
+        return await response.json();
+      }
+
       case 'getMasterCatalog': {
         const response = await fetch(`${BACKEND_URL}/api/products`, { headers });
         const json = await response.json();

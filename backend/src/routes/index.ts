@@ -14,6 +14,8 @@ import * as broadcastController from '../modules/broadcasts/broadcast.controller
 import * as branchController from '../modules/inventory/branch.controller';
 import * as transactionController from '../modules/transactions/transaction.controller';
 import monitorRoutes from '../modules/monitor/monitor.routes';
+import { requireAuth } from '../middleware/authMiddleware';
+import { requireRole } from '../middleware/rbacMiddleware';
 
 
 const router = Router();
@@ -59,6 +61,7 @@ router.patch('/branch-inventory/:id', branchInventoryController.updateInventory)
 router.delete('/branch-inventory/:id', branchInventoryController.deleteInventory);
 
 // Transactions & Settings
+router.get('/transactions', requireAuth, requireRole(['super_admin', 'branch_admin', 'admin']), transactionController.getTransactions);
 router.post('/checkout', transactionController.checkout);
 router.get('/store-settings', transactionController.getStoreSettings);
 
